@@ -58,6 +58,7 @@ t7 = time.process_time()
 print("fourth done ")
 
 # fuck this github bulllll fucking shit
+# oh no no no
 
 t8 = time.process_time()
 gwa = omega.FH_mk2(list(range(n)))
