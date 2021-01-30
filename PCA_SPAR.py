@@ -1,5 +1,6 @@
-from scipy.linalg import qr,svd,norm,eigvalsh
-from numpy import isnan,Inf,float64,ndarray,shape,std,copy,argmax,zeros,argsort,where,random,diag,sum,eye
+from scipy.linalg import qr,svd,norm,eigvalsh,det
+from numpy import isnan,Inf,float64,ndarray,shape,std,copy,argmax,zeros,argsort,where,random,diag,sum,eye,\
+    hstack,stack,product,sign,sqrt
 from scipy.sparse.linalg import eigsh
 from scipy.special import comb
 from queue import PriorityQueue
@@ -39,12 +40,6 @@ class SPCA:
             """ registering the sparsity level s """
             self.m,self.n = shape(A)
             """ saving the shape of matrix A explicitly not to repeat use of shape() function """
-            self.means = abs(A.mean(axis = 0))
-            """ storing the mean values of each independent variable which will be used for 
-            selection criteria in solver algortihms"""
-            self.sterror = std(A,axis = 0)
-            """ storing the standard deviation and variance of each independent variable which will
-            be used for selection criteria in solver algortihms"""
             self.rem_qsize = []
             """ initializing remaining queue size after the algorithm finishes """
             self.out = 1
@@ -53,16 +48,12 @@ class SPCA:
             """  saving original stdout, after manipulating it for changing values of out, we should be
             able to recover it """
             
-            q,r,p = qr(A,pivoting = True)
-            self.q = q
-            self.r = r
-            self.p = p
-            
             self.A2 = A.T.dot(A)
-            self.eigenvalues_A2 = eigvalsh(self.A2)
             
-            self.AA2 = abs(self.A2)
-            self.AA2s = self.AA2 - self.m*eye(self.n)
+            self.abs_A2 = abs(self.A2)
+            self.squared_A2 = self.A2 ** 2
+            
+            self.abs_A2s = self.abs_A2 - self.m * eye(self.n)
             
             """ QR with pivoting to find columns that are large in norm and orthogonal, construct the covarince matrix accordingly"""
             
@@ -138,12 +129,12 @@ class SPCA:
     
     def GCW1(self,P,C = []):
         if C == []:
-            two_indices = argmax(self.AA2s[P,:][:,P],axis = None)
+            two_indices = argmax(self.abs_A2s[P,:][:,P],axis = None)
             index1 = two_indices % len(P) 
             index2 = two_indices // len(P)
             C = [index1,index2]
-            for i in C:   
-                P.remove(i)
+            P.remove(index1)
+            P.remove(index2)
         len_c = len(C)
         len_p = len(P)
         while len_c < self.s:
@@ -153,7 +144,7 @@ class SPCA:
             best_value = 0
             for i in range(len_p):
                 C_temp = C + [P[i]]
-                value,vector = self.eigen_pair(C_temp)
+                value = self.eigen_upperbound(C_temp)
                 if value > best_value:
                     best_value = value
                     best_index = i
@@ -170,21 +161,22 @@ class SPCA:
                 # print("i",i,"j",j)
                 C_temp = C + [P[j]]
                 C_temp.remove(C[i])
-                value,vector = self.eigen_pair(C_temp)
+                value = self.eigen_upperbound(C_temp)
                 if value > best_value:
+                    # print("gwa for greedy")
                     P += [C[i]]
                     P.remove(P[j])
                     return self.GCW2(value,P,C_temp)
-        return [best_value,C]
+        return C,best_value
                 
     def PCW1(self,P,C = []):
         if C == []:
-            two_indices = argmax(self.AA2s[P,:][:,P],axis = None)
+            two_indices = argmax(self.abs_A2s[P,:][:,P],axis = None)
             index1 = two_indices % len(P) 
             index2 = two_indices // len(P)
             C = [index1,index2]
-            for i in C:   
-                P.remove(i)
+            P.remove(index1)
+            P.remove(index2)
         len_c = len(C)
         len_p = len(P)
         while len_c < self.s:
@@ -197,88 +189,116 @@ class SPCA:
                 value,vector = self.eigen_pair(C_temp)
                 if value > best_value:
                     best_value = value
+                    best_vector = vector
                     best_index = i
             C = C + [P[best_index]]
             P.remove(P[best_index])
-        return self.GCW2(best_value,P,C)
+        return self.PCW2(best_value[0],best_vector,P,C)
             
-    def PCW2(self,best_value,P,C = []):
+    def PCW2(self,best_value,best_vector,P,C = []):
         len_p = len(P)
         len_c = len(C)
-        for i in range(len_c):
+        sorted_vector = argsort(abs(best_vector[:,0]))
+        t = 0
+        while t < len_c:
+            # print("t",t)
+            i = sorted_vector[t]
             for j in range(len_p):
-                # print("i",i,"j",j)
                 C_temp = C + [P[j]]
                 C_temp.remove(C[i])
                 value,vector = self.eigen_pair(C_temp)
-                if value > best_value:
+                if value[0] > best_value:
+                    print("gwa for partial")
                     P += [C[i]]
                     P.remove(P[j])
-                    return self.GCW2(value,P,C_temp)
-        return C
-           
-    def FH(self,P,C = []):
-        V = zeros(len(P))
-        V2 = zeros(len(P))
-        R = argsort(self.AA2,axis = 1)[P,len(P)-self.s:len(P)-len(C)]
-        for i in range(len(P)):
-            current_set = R[i,:]
-            V[i] = sum(self.AA2[i,current_set])
-            V2[i] = sum(self.AA2[current_set,:][:,current_set])
+                    return self.PCW2(value[0],vector,P,C_temp)
+            t += 1
             
-        self.V = V
-        self.V2 = V2
-        self.R = R
-        listR = []
-        for i in range(self.n):
-            listR.append(sorted(list(self.R[i,:])))
-        self.listR = listR
-        R2 = []
-        R2f = []
-        R2e = []
-        for i in range(len(P)):
-            current = [i]
-            for j in range(self.s-len(C)-1):
-                argsortk = argsort(sum(self.AA2[current,:],axis = 0))
-                current.append(argsortk[-len(current)-1])
-            currentf = sorted(current)
-            currente = currentf[:]
-            currentf.append(self.frobenius(current))
-            currente.append(self.eigen_upperbound(current))
+        return C,best_value
 
-            R2.append(sorted(current))
-            R2f.append(currentf)
-            R2e.append(currente)
-        self.R2 = R2
-        self.R2f = R2f
-        self.R2e = R2e
-        
-    def FH_mk2(self,P,C = []):
-        """ Also do not touch the initial algorithm above  and fix the problem here
-        the problem is, current chosen variables do not have to be the best so you have to go over in 
-        order one by one to see if you can add it to the current set"""
-        V = zeros(len(P))
-        V2 = zeros(len(P))
-        R = argsort(self.AA2,axis = 1)[P,len(P)-self.s:len(P)-len(C)]
-        for i in range(len(P)):
-            current_set = R[i,:]
-            V[i] = sum(self.AA2[i,current_set])
-            V2[i] = sum(self.AA2[current_set,:][:,current_set])
+    def PCW1_iterative(self,P,C = []):
+        if C == []:
+            two_indices = argmax(self.abs_A2s[P,:][:,P],axis = None)
+            index1 = two_indices % len(P) 
+            index2 = two_indices // len(P)
+            C = [index1,index2]
+            P.remove(index1)
+            P.remove(index2)
+        len_c = len(C)
+        len_p = len(P)
+        while len_c < self.s:
+            len_c += 1
+            len_p -= 1
+            best_index = 0
+            best_value = 0
+            for i in range(len_p):
+                C_temp = C + [P[i]]
+                value,vector = self.eigen_pair(C_temp)
+                if value > best_value:
+                    best_value = value
+                    best_vector = vector
+                    best_index = i
+            C = C + [P[best_index]]
+            P.remove(P[best_index])
+        return self.PCW2_iterative(best_value[0],best_vector,P,C)
+    
+    def PCW2_iterative(self,best_value,best_vector,P,C = []):
+        len_p = len(P)
+        len_c = len(C)
+        sorted_vector = argsort(abs(best_vector[:,0]))
+        t = 0
+        while t < len_c:
+            # print("t",t)
+            i = sorted_vector[t]
+            t += 1
+            for j in range(len_p):
+                C_temp = C + [P[j]]
+                C_temp.remove(C[i])
+                value,vector = self.eigen_pair(C_temp)
+                if value[0] > best_value:
+                    print("gwa for partial")
+                    P += [C[i]]
+                    P.remove(P[j])
+                    C = C_temp.copy()
+                    t = 0
+                    sorted_vector = argsort(abs(vector[:,0]))
+                    break
             
-        self.V = V
-        self.V2 = V2
-        self.R = R
-        listR = []
+        return C,best_value
+          
+    def column_norm_1(self):
+        R = argsort(self.abs_A2,axis = 1)[:,self.n-self.s:].tolist()
+        Rc = []
+        RC = []
+        RF = []
+        best_val = 0
         for i in range(self.n):
-            listR.append(sorted(list(self.R[i,:])))
-        self.listR = listR
-        R2 = []
-        R2f = []
-        R2e = []
-        for i in range(len(P)):
+            current = sorted(R[i])
+            R[i] = current.copy()
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+            R[i].append(val)
+            Rc.append(current + [sum(self.abs_A2[i,current])])
+            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
+            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
+         
+        self.R = R
+        self.Rc = Rc
+        self.RC = RC
+        self.RF = RF
+        self.Rval = best_val
+        
+    def correlation_cw(self):
+        R = []
+        Rc = []
+        RC = []
+        RF = []
+        best_val = 0
+        for i in range(self.n):
             current = [i]
-            for j in range(self.s-len(C)-1):
-                argsortk = argsort(sum(self.AA2[current,:],axis = 0))[-len(current)-1:]
+            for j in range(self.s-1):
+                argsortk = argsort(sum(self.abs_A2[current,:],axis = 0))[-len(current)-1:][::-1]
                 k = 0
                 found = False
                 while not found and k < len(current) + 1:
@@ -286,18 +306,221 @@ class SPCA:
                         current.append(argsortk[k])
                         found = True
                     k += 1
-            currentf = sorted(current)
-            currente = currentf[:]
-            currentf.append(self.frobenius(current))
-            currente.append(self.eigen_upperbound(current))
+            current = sorted(current)
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+            R.append(current + [val])
+            Rc.append(current + [sum(self.abs_A2[i,current])])
+            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
+            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
 
-            R2.append(sorted(current))
-            R2f.append(currentf)
-            R2e.append(currente)
-        self.R2 = R2
-        self.R2f = R2f
-        self.R2e = R2e
+        self.R2 = R
+        self.R2c = Rc
+        self.R2C = RC
+        self.R2F = RF
+        self.R2val = best_val
         
+    def column_norm_2(self):
+        R = argsort(self.squared_A2,axis = 1)[:,self.n-self.s:].tolist()
+        Rc = R.copy()
+        RC = R.copy()
+        RF = R.copy()
+        best_val = 0
+        for i in range(self.n):
+            current = sorted(R[i])
+            R[i] = current.copy()
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+            R[i].append(val)
+            Rc.append(current + [sum(self.abs_A2[i,current])])
+            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
+            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
+         
+        self.R3 = R
+        self.R3c = Rc
+        self.R3C = RC
+        self.R3F = RF
+        self.R3val = best_val
+        
+    def frobenius_cw(self):
+        R = []
+        Rc = []
+        RC = []
+        RF = []
+        best_val = 0
+        for i in range(self.n):
+            current = [i]
+            for j in range(self.s-1):
+                argsortk = argsort(sum(self.squared_A2[current,:],axis = 0))[-len(current)-1:]
+                k = 0
+                found = False
+                while not found and k < len(current) + 1:
+                    if argsortk[k] not in current:
+                        current.append(argsortk[k])
+                        found = True
+                    k += 1
+            current = sorted(current)
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+            R.append(current + [val])
+            Rc.append(current + [sum(self.abs_A2[i,current])])
+            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
+            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
+
+        self.R4 = R
+        self.R4c = Rc
+        self.R4C = RC
+        self.R4F = RF
+        self.R4val = best_val
+        
+    def column_norm_min_max(self):
+        R = []
+        Rc = []
+        RC = []
+        RF = []
+        best_val = 0
+        for i in range(self.n):
+            current = [i]
+            for j in range(self.s-1):
+                k = 0
+                chosen = 0
+                max_min = 0
+                while k < self.n:
+                    if k in current:
+                        k += 1
+                        continue
+                    # lower_bound = min(norm(current + [k],ord = 1 ,axis = 1))
+                    # lower_bound = min(norm(self.A2[current + [k],:][:,current + [k]],ord = 1 ,axis = 1))
+                    lower_bound = min(sum(self.abs_A2[current + [k],:][:,current + [k]],axis = 1))
+                    if lower_bound > max_min:
+                        max_min = lower_bound
+                        chosen = k
+                    k += 1
+                current = current + [chosen]
+            current = sorted(current)
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+            R.append(current + [val])
+            Rc.append(current + [sum(self.abs_A2[i,current])])
+            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
+            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
+
+        self.R5 = R
+        self.R5c = Rc
+        self.R5C = RC
+        self.R5F = RF
+        self.R5val = best_val
+
+    def PCA_barrier_gradient(self):
+        x = random.randn(self.n)
+        x = x/(norm(x,2)* 10)
+        x_old = x.copy()
+        diff = 1
+        lamda = 1e-6
+        t = 1
+        while lamda > 1e-7 and t <= 1000:
+            while diff > 1e-4:
+                print("t",t,"norm",norm(x))
+                t += 1
+                x_old = x
+                step1 = self.A2.dot(x) - lamda * x/(1 - norm(x,2) ** 2)
+                step_size = 1/(5 + lamda/(1 - norm(x,2) ** 2))
+                print("step",norm(step1),"change",norm(step1) * step_size)
+                x = x_old + step_size * step1
+                if norm(x,2) >= 1:
+                    x = x/(norm(x,2)*1.0001)
+                diff = norm(x-x_old)
+            lamda = lamda * 0.1
+        return x
+    
+    def SPCA_barrier_gradient(self,k = 4,lamda0 = 1):
+        x = random.randn(self.n)
+        x = x/(norm(x,2)* 10)
+        x_old = x.copy()
+        diff = 1
+        lamda = 1e-6
+        t = 1
+        while lamda > 1e-7 and t <= 1000:
+            while diff > 1e-4:
+                print("t",t,"norm",norm(x))
+                t += 1
+                x_old = x
+                step1 = self.A2.dot(x) + lamda0 * sign(x) * x ** 2 \
+                    - lamda * x/(1 - norm(x,2) ** 2) - lamda * sign(x)/(sqrt(k) - norm(x,1))
+                step_size = 1/(5 + lamda/(1 - norm(x,2) ** 2))
+                print("step",norm(step1),"change",norm(step1) * step_size)
+                x = x_old + step_size * step1
+                if norm(x,2) >= 1:
+                    x = x/(norm(x,2)*1.0001)
+                diff = norm(x-x_old)
+            lamda = lamda * 0.1
+        return x      
+
+    def convex_lasso(self,lamda0 = 1):
+        x = random.randn(self.n)
+        x = x/(norm(x,2)* 10)
+        x_old = x.copy()
+        diff = 1
+        lamda = 1000
+        t = 1
+        val,vec = self.eigen_pair(list(range(self.n)))
+        A2 = -1 * self.A2 + eye(self.n) * val * 2
+        while lamda < 1e+5 and t <= 1000:
+            while diff > 1e-9:
+                print("t",t,"norm",norm(x))
+                t += 1
+                x_old = x
+                step1 = A2.dot(x) + lamda0 * sign(x) \
+                    + lamda * (norm(x,2) ** 2 - 1) * x
+                step_size = abs(1/(10 + lamda * (norm(x,2) ** 2 - 1)))
+                print("step",norm(step1),"change",norm(step1) * step_size)
+                x = x_old - 1 * step_size * step1
+                diff = norm(x-x_old)
+            lamda = lamda * 10
+        return x   
+    
+    def cassini_oval(self):
+        R = []
+        Rc = []
+        RC = []
+        RF = []
+        best_val = 0
+        for i in range(self.n):
+            current = [i]
+            for j in range(self.s-1):
+                k = 0
+                chosen = 0
+                c_oval = 0
+                while k < self.n:
+                    if k in current:
+                        k += 1
+                        continue
+                    oval = product(sorted(sum(self.abs_A2[current + [k],:][:,current + [k]],axis = 1))[-2:])
+                    if oval > c_oval:
+                        c_oval = oval
+                        chosen = k
+                    k += 1
+                current = current + [chosen]
+            current = sorted(current)
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+            R.append(current + [val])
+            Rc.append(current + [sum(self.abs_A2[i,current])])
+            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
+            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
+
+        self.R6 = R
+        self.R6c = Rc
+        self.R6C = RC
+        self.R6F = RF
+        self.R6val = best_val
+        
+
     def solve_spca_mk1(self,P ,C = []):
         """ 
         
@@ -535,15 +758,15 @@ class SPCA:
                     """ termination condition of the algorithm """
                 else:
                     if C == []:
-                        aggregate_double_index = argmax(self.AA2s[:,P][P,:])
+                        aggregate_double_index = argmax(self.abs_A2s[:,P][P,:])
                         aggregate_index0 = aggregate_double_index // len_p
                         aggregate_index1 = aggregate_double_index % len_p
-                        if sum(self.AA2s[P,aggregate_index0]) >= sum(self.AA2s[P,aggregate_index1],axis = 0):
+                        if sum(self.abs_A2s[P,aggregate_index0]) >= sum(self.abs_A2s[P,aggregate_index1],axis = 0):
                             aggregate_index = aggregate_index0
                         else:
                             aggregate_index = aggregate_index1
                     else:
-                        aggregate_index = argmax(sum(self.AA2s[:,C][P,:]))
+                        aggregate_index = argmax(sum(self.abs_A2s[:,C][P,:]))
                     correct_index = P[aggregate_index]
                     C1 = C + [correct_index]
 
@@ -617,7 +840,7 @@ class SPCA:
                     if C == []:
                         correct_index = random.choice(a = P,p = diag(self.A2)[P]/sum(diag(self.A2)[P]))
                     else:
-                        correct_index = random.choice(a = P,p = sum(self.AA2s[:,C][P,:],axis = 1)/sum(self.AA2s[:,C][P,:]))
+                        correct_index = random.choice(a = P,p = sum(self.abs_A2s[:,C][P,:],axis = 1)/sum(self.abs_A2s[:,C][P,:]))
                     C1 = C + [correct_index]
 
                     P1 = P[:]
@@ -662,42 +885,42 @@ class SPCA:
         """
         V = zeros(len(P))
         V2 = zeros(len(P))
-        R = argsort(self.AA2,axis = 1)[P,len(P)-self.s:len(P)-len(C)]
+        R = argsort(self.abs_A2,axis = 1)[P,len(P)-self.s:len(P)-len(C)]
         for i in range(len(P)):
             current_set = R[i,:]
-            V[i] = sum(self.AA2[i,current_set])
-            V2[i] = sum(self.AA2[current_set,:][:,current_set])
+            V[i] = sum(self.abs_A2[i,current_set])
+            V2[i] = sum(self.abs_A2[current_set,:][:,current_set])
             
-        self.V = V
-        self.V2 = V2
-        self.R = R
-        listR = []
-        for i in range(self.n):
-            listR.append(sorted(list(self.R[i,:])))
-        self.listR = listR
-        R2 = []
-        R2f = []
-        R2e = []
-        for i in range(len(P)):
-            current = [i]
-            for j in range(self.s-len(C)-1):
-                argsortk = argsort(sum(self.AA2[current,:],axis = 0))
-                current.append(argsortk[-len(current)-1])
-            currentf = sorted(current)
-            currente = currentf[:]
-            currentf.append(self.frobenius(current))
-            currente.append(self.eigen_upperbound(current))
+        # self.V = V
+        # self.V2 = V2
+        # self.R = R
+        # listR = []
+        # for i in range(self.n):
+        #     listR.append(sorted(list(self.R[i,:])))
+        # self.listR = listR
+        # R2 = []
+        # R2f = []
+        # R2e = []
+        # for i in range(len(P)):
+        #     current = [i]
+        #     for j in range(self.s-len(C)-1):
+        #         argsortk = argsort(sum(self.abs_A2[current,:],axis = 0))
+        #         current.append(argsortk[-len(current)-1])
+        #     currentf = sorted(current)
+        #     currente = currentf[:]
+        #     currentf.append(self.frobenius(current))
+        #     currente.append(self.eigen_upperbound(current))
 
-            R2.append(sorted(current))
-            R2f.append(currentf)
-            R2e.append(currente)
-        self.R2 = R2
-        self.R2f = R2f
-        self.R2e = R2e
+        #     R2.append(sorted(current))
+        #     R2f.append(currentf)
+        #     R2e.append(currente)
+        # self.R2 = R2
+        # self.R2f = R2f
+        # self.R2e = R2e
         P = list(map(P.__getitem__,argsort(-1*V)))
         self.order = P
             
-        """ reordering indices in P according to column norms"""
+        # """ reordering indices in P according to column norms"""
         
         q = PriorityQueue()
         """ prioirty queue for best first search  """
@@ -769,11 +992,11 @@ class SPCA:
         self.count = 0
         V = zeros(len(P))
         V2 = zeros(len(P))
-        R = argsort(self.AA2,axis = 1)[P,len(P)-self.s:len(P)-len(C)]
+        R = argsort(self.abs_A2,axis = 1)[P,len(P)-self.s:len(P)-len(C)]
         for i in range(len(P)):
             current_set = R[i,:]
-            V[i] = sum(self.AA2[i,current_set])
-            V2[i] = sum(self.AA2[current_set,:][:,current_set])
+            V[i] = sum(self.abs_A2[i,current_set])
+            V2[i] = sum(self.abs_A2[current_set,:][:,current_set])
             
         self.V = V
         self.V2 = V2
@@ -788,7 +1011,7 @@ class SPCA:
         for i in range(len(P)):
             current = [i]
             for j in range(self.s-len(C)-1):
-                argsortk = argsort(sum(self.AA2[current,:],axis = 0))
+                argsortk = argsort(sum(self.abs_A2[current,:],axis = 0))
                 current.append(argsortk[-len(current)-1])
             currentf = sorted(current)
             currente = currentf[:]
@@ -904,9 +1127,9 @@ class SPCA:
                     """ termination condition of the algorithm """
                 else:
                     V = zeros(len(P))
-                    R = argsort(self.AA2[P,:][:,P],axis = 1)[:,len_p-self.s+len_c:]
+                    R = argsort(self.abs_A2[P,:][:,P],axis = 1)[:,len_p-self.s+len_c:]
                     for i in range(len(P)):
-                        V[i] = sum(self.AA2[i,R[i,:]])
+                        V[i] = sum(self.abs_A2[i,R[i,:]])
                     aggregate_index = argmax(V)                
                     correct_index = P[aggregate_index]
                     
@@ -979,9 +1202,9 @@ class SPCA:
                     """ termination condition of the algorithm """
                 else:
                     V = zeros(len(P))
-                    R = argsort(self.AA2[P,:][:,P],axis = 1)[:,len_p-self.s+len_c:]
+                    R = argsort(self.abs_A2[P,:][:,P],axis = 1)[:,len_p-self.s+len_c:]
                     for i in range(len(P)):
-                        V[i] = sum(self.AA2[i,R[i,:]]) + sum(self.AA2[i,C])
+                        V[i] = sum(self.abs_A2[i,R[i,:]]) + sum(self.abs_A2[i,C])
                     aggregate_index = argmax(V)                
                     correct_index = P[aggregate_index]
                     
