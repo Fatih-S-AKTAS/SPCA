@@ -1,13 +1,9 @@
-from scipy.linalg import qr,svd,norm,eigvalsh,det,ldl
+from scipy.linalg import norm,eigvalsh,ldl
 from numpy import isnan,Inf,float64,ndarray,shape,std,copy,argmax,zeros,argsort,where,random,diag,sum,eye,\
     hstack,stack,product,sign,sqrt,arange,delete
 from scipy.sparse.linalg import eigsh
-from scipy.special import comb
 from queue import PriorityQueue
-from guppy import hpy
 import time
-import os
-import sys
 
 
 class SPCA:
@@ -15,7 +11,7 @@ class SPCA:
         """ 
         initilization of parameters 
         -------------------------------------------------------------------------------------
-        A       = m x m covariance matrix
+        A       = m x n data matrix
         s       = sparsity level
         
         Please contact selim.aktas@ug.bilkent.edu.tr for any bugs, errors and recommendations.
@@ -41,41 +37,31 @@ class SPCA:
             self.m,self.n = shape(A)
             """ saving the shape of matrix A explicitly not to repeat use of shape() function """
             self.rem_qsize = []
-            """ initializing remaining queue size after the algorithm finishes """
+
             self.out = 1
             """ initializing the output choice of algorithm """
-            self.original_stdout = sys.stdout
-            """  saving original stdout, after manipulating it for changing values of out, we should be
-            able to recover it """
             
             self.A = A
             self.A2 = A.T.dot(A)
-            
             self.abs_A2 = abs(self.A2)
             self.squared_A2 = self.A2 ** 2
-            
             self.abs_A2s = self.abs_A2 - self.m * eye(self.n)
             
-            """ QR with pivoting to find columns that are large in norm and orthogonal, construct the covarince matrix accordingly"""
-            
             self.tablelookup = {}
-            """ lookup tables for solving all subset problem """
+            """ lookup table to store and not solve for the same sparsity pattern multiple times"""
             self.many = 1
-            """ initializing the number of solutions to be found"""
+
             self.eigenvalues = []
             self.eigenindices = []
             self.eigenvectors = []
-            """ initializing the arrays of solution parameters """
-            self.memory = 0
-            """ initializing memory usage of the algorithm """
-            self.cpu = 0
-            """ initializing cpu usage of the algorithm """
-            self.best = -Inf
 
-    
+            self.best = -Inf
+            self.look_up = 0
+
     def show(self,ind):
         print(self.A2[:,ind][ind,:])
-        
+        return self.A2[:,ind][ind,:]
+    
     def frobenius(self,ind):
         return norm(self.A2[:,ind][ind,:])
     
@@ -93,37 +79,32 @@ class SPCA:
     def eigen_upperboundl(self,ind):
         check = str(ind)
         if check in self.tablelookup:
+            self.look_up += 1
+            print("unlucky")
             return self.tablelookup[check]
         dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-2,return_eigenvectors = False)
-        self.tablelookup_nnls[check] = dominant_eigen_value[0]
+        self.tablelookup[check] = dominant_eigen_value[0]
         return dominant_eigen_value[0]
 
 
-    def SPI(self,ind,x = False):
+    def SPI(self):
         """ Sparse Power Iteration """
-        l = len(ind)
-        A = self.A[:,ind]
-        u,d,v = svd(A)
-        step = 1/d[0] ** 2
-        if x is False:
-            x1 = zeros(l)
-        else:
-            x1 = copy(x)    
-        diff = 1
+        val,x1 = self.eigen_pair(list(range(self.n)))
+        x1t = zeros([self.n,1])
         t = 0
-        x2 = x1
-        while diff >= 1e-6 and t <= 400:
-            # print("dif",diff,"time",t)
+        diff = 1
+        while t <= 1000 and diff > 1e-4:
             t += 1
-            grad = self.rtilde[:,ind].T.dot(self.rtilde[:,ind].dot(x1) - self.qb[:,0])
-            x1 = x1 - step * grad
-            
-            si = argsort(x1)
-            x1[si[:-self.s]] = 0
-            diff = norm(x2-x1,2)
-            x2 = x1
-
-        return x1
+            x0 = x1t
+            x1 = self.A2.dot(x1)
+            x1 = x1/norm(x1)
+            xi = argsort(abs(x1[:,0]))
+            x1t = zeros([self.n,1])
+            x1t[xi[:self.s],0] = x1[xi[:self.s],0]
+            diff = norm(x0-x1t)
+        pattern = where(abs(x1t) > 0)[0]
+        value = self.eigen_upperbound(pattern)
+        return pattern,value
     
     def GCW1(self,P,C = []):
         if C == []:
@@ -345,9 +326,6 @@ class SPCA:
           
     def column_norm_1(self):
         R = argsort(self.abs_A2,axis = 1)[:,self.n-self.s:].tolist()
-        Rc = []
-        RC = []
-        RF = []
         best_val = 0
         for i in range(self.n):
             current = sorted(R[i])
@@ -356,21 +334,40 @@ class SPCA:
             if val > best_val:
                 best_val = val
             R[i].append(val)
-            Rc.append(current + [sum(self.abs_A2[i,current])])
-            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
-            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
          
         self.R = R
-        self.Rc = Rc
-        self.RC = RC
-        self.RF = RF
+        self.Rval = best_val
+        
+    def column_norm_1l(self):
+        R = argsort(self.abs_A2,axis = 1)[:,self.n-self.s:].tolist()
+        best_val = 0
+        for i in range(self.n):
+            current = R[i]
+            R[i] = current.copy()
+            val = self.eigen_upperboundl(current)
+            if val > best_val:
+                best_val = val
+            R[i].append(val)
+         
+        self.R = R
+        self.Rval = best_val
+
+    def column_norm_1_fast(self):
+        R = argsort(self.abs_A2,axis = 1)[:,self.n-self.s:].tolist()
+        best_val = 0
+        for i in range(self.n):
+            current = sorted(R[i])
+            R[i] = current.copy()
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+            R[i].append(val)
+         
+        self.R = R
         self.Rval = best_val
         
     def correlation_cw(self):
         R = []
-        Rc = []
-        RC = []
-        RF = []
         best_val = 0
         for i in range(self.n):
             current = [i]
@@ -388,14 +385,8 @@ class SPCA:
             if val > best_val:
                 best_val = val
             R.append(current + [val])
-            Rc.append(current + [sum(self.abs_A2[i,current])])
-            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
-            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
 
         self.R2 = R
-        self.R2c = Rc
-        self.R2C = RC
-        self.R2F = RF
         self.R2val = best_val
         
     def column_norm_2(self):
@@ -423,9 +414,6 @@ class SPCA:
         
     def frobenius_cw(self):
         R = []
-        Rc = []
-        RC = []
-        RF = []
         best_val = 0
         for i in range(self.n):
             current = [i]
@@ -443,14 +431,8 @@ class SPCA:
             if val > best_val:
                 best_val = val
             R.append(current + [val])
-            Rc.append(current + [sum(self.abs_A2[i,current])])
-            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
-            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
 
         self.R4 = R
-        self.R4c = Rc
-        self.R4C = RC
-        self.R4F = RF
         self.R4val = best_val
         
     def cholesky(self):
@@ -477,7 +459,7 @@ class SPCA:
             current.append(P[new_index])
             P = delete(P,new_index)
         
-        return current
+        return current,self.eigen_upperbound(current)
 
     def cholesky_mk2(self):
         
@@ -502,52 +484,28 @@ class SPCA:
             current.append(P[new_index])
             P = delete(P,new_index)
         
-        return current    
+        return current,self.eigen_upperbound(current)
 
         
     def EM(self):
-        w = self.eigen_pair(list(range(self.n)))
-        y = self.A.dot(w)
-        return w
+        v,wt = self.eigen_pair(list(range(self.n)))
+        t = 0
+        diff = 1
+        while diff >= 1e-4:
+            t += 1
+            y = self.A.dot(wt)
+            w = y.T.dot(self.A)/(norm(y) ** 2)
+            order = argsort(-1 * abs(w[0]))[:self.s]
+            old_wt = wt
+            wt = zeros([self.n,1])
+            wt[order,0] = w[0][order]
+            wt = wt/norm(wt)
+            diff = norm(wt-old_wt)
+        pattern = where(abs(wt) > 0)[0]
+        value = self.eigen_upperbound(pattern)
+        return pattern,value
     
-    def cassini_oval(self):
-        R = []
-        Rc = []
-        RC = []
-        RF = []
-        best_val = 0
-        for i in range(self.n):
-            current = [i]
-            for j in range(self.s-1):
-                k = 0
-                chosen = 0
-                c_oval = 0
-                while k < self.n:
-                    if k in current:
-                        k += 1
-                        continue
-                    oval = product(sorted(sum(self.abs_A2[current + [k],:][:,current + [k]],axis = 1))[-2:])
-                    if oval > c_oval:
-                        c_oval = oval
-                        chosen = k
-                    k += 1
-                current = current + [chosen]
-            current = sorted(current)
-            val = self.eigen_upperbound(current)
-            if val > best_val:
-                best_val = val
-            R.append(current + [val])
-            Rc.append(current + [sum(self.abs_A2[i,current])])
-            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
-            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
-
-        self.R6 = R
-        self.R6c = Rc
-        self.R6C = RC
-        self.R6F = RF
-        self.R6val = best_val
-
-    def solve_spca_mk6(self,P ,C = []):
+    def solve_spca(self,P ,C = []):
         """ 
 
         sparse principal component with 
@@ -564,33 +522,7 @@ class SPCA:
             current_set = R[i,:]
             V[i] = sum(self.abs_A2[i,current_set])
             V2[i] = sum(self.abs_A2[current_set,:][:,current_set])
-            
-        # self.V = V
-        # self.V2 = V2
-        # self.R = R
-        # listR = []
-        # for i in range(self.n):
-        #     listR.append(sorted(list(self.R[i,:])))
-        # self.listR = listR
-        # R2 = []
-        # R2f = []
-        # R2e = []
-        # for i in range(len(P)):
-        #     current = [i]
-        #     for j in range(self.s-len(C)-1):
-        #         argsortk = argsort(sum(self.abs_A2[current,:],axis = 0))
-        #         current.append(argsortk[-len(current)-1])
-        #     currentf = sorted(current)
-        #     currente = currentf[:]
-        #     currentf.append(self.frobenius(current))
-        #     currente.append(self.eigen_upperbound(current))
 
-        #     R2.append(sorted(current))
-        #     R2f.append(currentf)
-        #     R2e.append(currente)
-        # self.R2 = R2
-        # self.R2f = R2f
-        # self.R2e = R2e
         P = list(map(P.__getitem__,argsort(-1*V)))
         self.order = P
             

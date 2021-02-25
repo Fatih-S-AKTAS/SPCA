@@ -1,6 +1,6 @@
 # from numpy import *
 # from scipy.linalg import *
-from numpy import array,transpose,reshape,random,zeros,mean,ones,hstack,diag
+from numpy import array,transpose,reshape,random,zeros,mean,ones,hstack,diag,shape
 from numpy.linalg import svd
 
 
@@ -368,121 +368,121 @@ ozone_Y1 = ozone_Y - mean(ozone_Y)
 
 
 
-oz = zeros([1000,50])
-target = zeros([1000,1])
-z = open("data.txt","r")
-z.readline()
+# oz = zeros([1000,50])
+# target = zeros([1000,1])
+# z = open("data.txt","r")
+# z.readline()
 
-for i in range(1000):
-    c = z.readline()
-    sc = c.split("\t")
-    fsc = list(map(float,sc))
-    oz[i,:] = fsc[:-1]
-    target[i] = fsc[-1]
+# for i in range(1000):
+#     c = z.readline()
+#     sc = c.split("\t")
+#     fsc = list(map(float,sc))
+#     oz[i,:] = fsc[:-1]
+#     target[i] = fsc[-1]
     
-z.close()
+# z.close()
 
-oz1 = zeros([1000,100])
-target1 = zeros([1000,1])
-z1 = open("data1.txt","r")
-z1.readline()
+# oz1 = zeros([1000,100])
+# target1 = zeros([1000,1])
+# z1 = open("data1.txt","r")
+# z1.readline()
 
-for i in range(1000):
-    c = z1.readline()
-    sc = c.split("\t")
-    fsc = list(map(float,sc))
-    oz1[i,:] = fsc[:-1]
-    target1[i] = fsc[-1]
+# for i in range(1000):
+#     c = z1.readline()
+#     sc = c.split("\t")
+#     fsc = list(map(float,sc))
+#     oz1[i,:] = fsc[:-1]
+#     target1[i] = fsc[-1]
 
-z1.close()
+# z1.close()
 
-oz2 = zeros([1000,50])
-target2 = zeros([1000,1])
-z2 = open("data2.txt","r")
-header = z2.readline()
+# oz2 = zeros([1000,50])
+# target2 = zeros([1000,1])
+# z2 = open("data2.txt","r")
+# header = z2.readline()
 
-for i in range(1000):
-    c = z2.readline()
-    sc = c.split("\t")
-    fsc = list(map(float,sc))
-    oz2[i,:] = fsc[:-1]
-    target2[i] = fsc[-1]
+# for i in range(1000):
+#     c = z2.readline()
+#     sc = c.split("\t")
+#     fsc = list(map(float,sc))
+#     oz2[i,:] = fsc[:-1]
+#     target2[i] = fsc[-1]
 
-z2.close()
+# z2.close()
 
-oz3 = zeros([240,124])
-target3 = zeros([240,1])
-z3 = open("data3.txt","r")
-header = z3.readline()
+# oz3 = zeros([240,124])
+# target3 = zeros([240,1])
+# z3 = open("data3.txt","r")
+# header = z3.readline()
 
-for i in range(240):
-    c = z3.readline()
-    sc = c.split("\t")
-    fsc = list(map(float,sc))
-    oz3[i,:] = fsc[:-1]
-    target3[i] = fsc[-1]
+# for i in range(240):
+#     c = z3.readline()
+#     sc = c.split("\t")
+#     fsc = list(map(float,sc))
+#     oz3[i,:] = fsc[:-1]
+#     target3[i] = fsc[-1]
 
-z3.close()
+# z3.close()
 
-oz4 = zeros([6435,36])
-target4 = zeros([6435,1])
-z4 = open("data4.txt","r")
-header = z4.readline()
+# oz4 = zeros([6435,36])
+# target4 = zeros([6435,1])
+# z4 = open("data4.txt","r")
+# header = z4.readline()
 
-for i in range(6435):
-    c = z4.readline()
-    sc = c.split("\t")
-    fsc = list(map(float,sc))
-    oz4[i,:] = fsc[:-1]
-    target4[i] = fsc[-1]
+# for i in range(6435):
+#     c = z4.readline()
+#     sc = c.split("\t")
+#     fsc = list(map(float,sc))
+#     oz4[i,:] = fsc[:-1]
+#     target4[i] = fsc[-1]
 
-z4.close()
+# z4.close()
 
-energy_x = zeros([19735,26])
-energy_y = zeros([19735,1])
-z5 = open("energydata_complete.csv","r")
-header = z5.readline()
+# energy_x = zeros([19735,26])
+# energy_y = zeros([19735,1])
+# z5 = open("energydata_complete.csv","r")
+# header = z5.readline()
 
-for i in range(19735):
-    line = z5.readline()
-    v = line.strip()
-    v = v.split('","')
-    v = v[:-1]
-    fv = list(map(float,v[1:]))
-    energy_x[i,:] = fv[1:]
-    energy_y[i] = fv[0]
-
-
-z5.close()
-
-conduct_x = zeros([21263,81])
-conduct_y = zeros([21263,1])
-z6 = open("superconduct.csv","r")
-header = z6.readline()
-for i in range(19735):
-    line = z6.readline()
-    v = line.strip()
-    v = v.split(",")
-    fv = list(map(float,v))
-    conduct_x[i,:] = fv[:-1]
-    conduct_y[i] = fv[-1]
-
-z6.close()
+# for i in range(19735):
+#     line = z5.readline()
+#     v = line.strip()
+#     v = v.split('","')
+#     v = v[:-1]
+#     fv = list(map(float,v[1:]))
+#     energy_x[i,:] = fv[1:]
+#     energy_y[i] = fv[0]
 
 
-online_x = zeros([39644,58])
-online_y = zeros([39644,1])
-z7 = open("OnlineNewsPopularity.csv","r")
-header = z7.readline()
-for i in range(39644):
-    line = z7.readline()
-    v = line.strip()
-    v = v.split(",")
-    fv = list(map(float,v[2:]))
-    online_x[i,:] = fv[:-1]
-    online_y[i] = fv[-1]
+# z5.close()
 
-z7.close()
+# conduct_x = zeros([21263,81])
+# conduct_y = zeros([21263,1])
+# z6 = open("superconduct.csv","r")
+# header = z6.readline()
+# for i in range(19735):
+#     line = z6.readline()
+#     v = line.strip()
+#     v = v.split(",")
+#     fv = list(map(float,v))
+#     conduct_x[i,:] = fv[:-1]
+#     conduct_y[i] = fv[-1]
+
+# z6.close()
+
+
+# online_x = zeros([39644,58])
+# online_y = zeros([39644,1])
+# z7 = open("OnlineNewsPopularity.csv","r")
+# header = z7.readline()
+# for i in range(39644):
+#     line = z7.readline()
+#     v = line.strip()
+#     v = v.split(",")
+#     fv = list(map(float,v[2:]))
+#     online_x[i,:] = fv[:-1]
+#     online_y[i] = fv[-1]
+
+# z7.close()
 
 
 pitprops = zeros([13,13])
@@ -497,4 +497,25 @@ for i in range(13):
     
 z8.close()
 
+def read_pgm(pgmf):
+    """Return a raster of integers from a PGM as a list of lists."""
+    assert pgmf.readline() == b'P5\n'
+    (width, height) = [int(i) for i in pgmf.readline().split()]
+    depth = int(pgmf.readline())
+    assert depth <= 255
+
+    raster = []
+    for y in range(height):
+        row = []
+        for y in range(width):
+            row.append(ord(pgmf.read(1)))
+        raster.append(row)
+    return raster
+
+at_t_faces = zeros([400,10304])
+for person in range(40):
+    for image in range(10):
+        z9 = open("at_t_faces/s"+str(person + 1)+"/"+str(image+1)+".pgm","rb")
+        pgm_file = read_pgm(z9)
+        at_t_faces[person*10+image,:] = array(pgm_file).flatten()
 

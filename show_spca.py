@@ -9,9 +9,9 @@ import cvxpy
 
 #%%
 
-# A = random.normal(4,10,[10,20])
+A = random.normal(4,10,[200,1000])
 
-A = ozone_X2
+# A = at_t_faces
 
 m,n = shape(A)
 
@@ -24,85 +24,106 @@ sA = std(A,axis = 0)
 A = A/sA
 
 A2 = A.T.dot(A)
-vals = eigvalsh(A2)
 
 
 #%%
 
-s = 5
+s = 20
 
 omega = SPCA(A,s)
 # omega.A2 = pitprops
 # omega.squared_A2 = pitprops ** 2
 # omega.abs_A2 = abs(pitprops)
 # omega.abs_A2s = abs(pitprops) - eye(13)
-# vals = eigvalsh(pitprops)
-# A2con = pitprops/vals[0]
-A2_con_inv = inv(pitprops)
 
-# omega.A2 = matrix
-# omega.squared_A2 = matrix ** 2
-# omega.abs_A2 = abs(matrix)
-# omega.abs_A2s = abs(matrix) - eye(50)
+
+#%%
 
 t0 = time.process_time()
 omega.column_norm_1()
 t1 = time.process_time()
 
+tv0 = time.process_time()
+omega.column_norm_1l()
+tv1 = time.process_time()
 
-omega.column_norm_2()
+print("gerschgorin done ")
 
-print("first done ")
+#%%
 
 t2 = time.process_time()
 pcw_index2,pcw_val2 = omega.PCW1_iterative(list(range(n)))
 t3 = time.process_time()
 
-print("second done ")
+print("pcw done ")
 
 t4 = time.process_time()
 # pcw_index,pcw_val = omega.PCW1(list(range(n)))
 t5 = time.process_time()
 
-print("third done ")
+
 
 t6 = time.process_time()
 # gcw_index,gcw_val = omega.GCW1(list(range(n)))
 t7 = time.process_time()
 
-print("fourth done ")
+
 
 t14 = time.process_time()
-gcw_index2,gcw_val2 = omega.GCW1_iterative(list(range(n)))
+# gcw_index2,gcw_val2 = omega.GCW1_iterative(list(range(n)))
 t15 = time.process_time()
+
+print("gcw done ")
 
 t8 = time.process_time()
 omega.frobenius_cw()
 t9 = time.process_time()
 
-print("fifth done ")
+print("frobenius done ")
 
 t10 = time.process_time()
 omega.correlation_cw()
 t11 = time.process_time()
 
+print("correlation done ")
 
 t12 = time.process_time()
-# omega.solve_spca_mk6(list(range(n)))
+# omega.solve_spca(list(range(n)))
 t13 = time.process_time()
 
 t16 = time.process_time()
-chol = omega.cholesky()
+em_index,em_val = omega.EM()
 t17 = time.process_time()
 
+print("em done ")
+
 t18 = time.process_time()
-chol2 = omega.cholesky_mk2()
+chol2,chol_val2 = omega.cholesky_mk2()
 t19 = time.process_time()
 
-print("first {:1.4f} second {:1.4f} third {:1.4f} fourth {:1.4f}  fifth {:1.4f}".format(t1-t0,t3-t2,t5-t4,t7-t6,t9-t8))
-# print("eigenvalue",omega.eigenvalues[0],"eigenindex",omega.eigenindices[0],"frobenius",norm(A2[:,omega.eigenindices[0]][omega.eigenindices[0],:]))
-# print(A2[:,omega.eigenindices[0]][omega.eigenindices[0],:])
-# print(sum(abs(A2[:,omega.eigenindices[0]][omega.eigenindices[0],:])))
+print("chol2 done ")
+
+t20 = time.process_time()
+chol,chol_val = omega.cholesky()
+t21 = time.process_time()
+
+print("chol done ")
+
+t22 = time.process_time()
+spi,spi_val = omega.SPI()
+t23 = time.process_time()
+
+print("spi done ")
+
+print("Gerschgorin  ",t1-t0)
+print("correlation  ",t11-t10)
+print("Frobenius    ",t9-t8)
+print("cholesky     ",t21-t20)
+print("cholesky  2  ",t19-t18)
+print("partial      ",t3-t2)
+print("greedy       ",t15-t14)
+print("expect       ",t17-t16)
+print("thresholding ",t23-t22)
 
 nope = False
 
@@ -114,8 +135,11 @@ if nope:
     print("optimal      ",val_bulduk)
 print("Gerschgorin  ",omega.Rval)
 print("correlation  ",omega.R2val)
-print("Column norm  ",omega.R3val)
 print("Frobenius    ",omega.R4val)
-print("cholesky     ",omega.eigen_upperbound(chol))
+print("cholesky     ",chol_val)
+print("cholesky  2  ",chol_val2)
+print("expect       ",em_val)
+print("thresholding ",spi_val)
 print("partial      ",pcw_val2)
-print("greedy       ",gcw_val2)
+# print("greedy       ",gcw_val2)
+
