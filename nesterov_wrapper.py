@@ -38,9 +38,10 @@ import pandas as pd
 import matplotlib.pyplot as plt  
 import seaborn as sns
 import pickle
+import time
 
 from nesterov_functions import *
-from static_questions import pitprops
+from static_questions import pitprops,at_t_faces
 
 def run_formulation(args, A_centered, X0, p):
     x = X0/LA.norm(X0.A)
@@ -132,7 +133,7 @@ parser.add_argument('--density_of_SP', default = 1, type=float, help="density of
 parser.add_argument('--sparsity', default = 16, type=int, help="sparsity target")
 parser.add_argument('--tol', default = 1e-6, type=float, help="tolerance")
 parser.add_argument('--maxIter', default = 200, type=int, help="max num of iterations")
-parser.add_argument('--numOfTrials', default = 10, type=int, help="num Of trials")
+parser.add_argument('--numOfTrials', default = 40, type=int, help="num Of trials")
 parser.add_argument('--stabilityIter', default = 30, type=int, help="stability of gamma")
 parser.add_argument('--incDelta', default = 1e-3, type=float, help="rate of delta increase")
 
@@ -141,7 +142,7 @@ parser.add_argument('--incDelta', default = 1e-3, type=float, help="rate of delt
 args, unknown = parser.parse_known_args()
 args = vars(args)
 
-args["sparsity"] = 5
+args["sparsity"] = 20
 
 """
  args = 
@@ -170,14 +171,19 @@ A_centered = A - A.mean(0)
 # d,p = LA.eigh(pitprops)
 # A_centered = np.diag(d ** 0.5).dot(p.T)
 
-n = 13
-p = 13
+A_centered = at_t_faces
+# A_centered = np.random.randn(200,1000)
+A_centered = A_centered - A_centered.mean(0)
+A_centered = A_centered/A_centered.std(axis=0)
+
+n,p = np.shape(A_centered)
 
 R = CustomDistribution(seed=args['seed'])
 R_obj = R()  # get a frozen version of the distribution
-all_x = []
+best_x = None
 bestVar = -np.inf
 explainedVarSet = []
+t0 = time.process_time()
 for seed in range(args['numOfTrials']):
     
     args['seed'] = seed
@@ -193,9 +199,10 @@ for seed in range(args['numOfTrials']):
     
     if expVar > bestVar:
         bestVar = expVar
+        best_x = x
         
     explainedVarSet.append([seed, args['sparsity'], expVar])
-
+t1 = time.process_time()
     
 seedSet = []
 sparseDegreeSet = []
@@ -217,4 +224,4 @@ output = pd.DataFrame({'Seed':seedSet,
 #           str(args['numOfTrials'])+'_sparsity_'+str(args['sparsity'])+'.pkl')
 # print(args['resultsDir']+args['formulation']+'_'+'expectedVar_numTraial_'+\
 #           str(args['numOfTrials'])+'_sparsity_'+str(args['sparsity'])+'.pkl')
-    
+print("cpu time",t1-t0)

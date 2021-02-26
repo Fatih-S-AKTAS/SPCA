@@ -17,15 +17,15 @@ class SPCA:
         Please contact selim.aktas@ug.bilkent.edu.tr for any bugs, errors and recommendations.
         """
         
-        for i in range(len(A)):
-            for j in range(len(A[0])):
-                if isnan(A[i,j]) or abs(A[i,j]) == Inf:
-                    print("Matrix A has NAN or Inf values, it will give linear algebra errors")
-                    break
-        for i in range(len(A)):
-            for j in range(len(A[0])):
-                if type(A[i,j]) != float64:
-                    print("Matrix A should be registered as float64, otherwise computations will be wrong")
+        # for i in range(len(A)):
+        #     for j in range(len(A[0])):
+        #         if isnan(A[i,j]) or abs(A[i,j]) == Inf:
+        #             print("Matrix A has NAN or Inf values, it will give linear algebra errors")
+        #             break
+        # for i in range(len(A)):
+        #     for j in range(len(A[0])):
+        #         if type(A[i,j]) != float64:
+        #             print("Matrix A should be registered as float64, otherwise computations will be wrong")
                     
         if type(A) != ndarray:
             print("A should be a numpy ndarray")
@@ -54,7 +54,8 @@ class SPCA:
             self.eigenvalues = []
             self.eigenindices = []
             self.eigenvectors = []
-
+            
+            self.search_multiplier = 10
             self.best = -Inf
             self.look_up = 0
 
@@ -69,20 +70,19 @@ class SPCA:
         return eigvalsh(self.A2[:,ind][ind,:])
     
     def eigen_upperbound(self,ind):
-        dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-2,return_eigenvectors = False)
+        dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
         return dominant_eigen_value[0]
     
     def eigen_pair(self,ind):
-        eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-2,return_eigenvectors = True)
+        eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
         return eigenvalue,eigenvector
     
     def eigen_upperboundl(self,ind):
         check = str(ind)
         if check in self.tablelookup:
             self.look_up += 1
-            print("unlucky")
             return self.tablelookup[check]
-        dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-2,return_eigenvectors = False)
+        dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
         self.tablelookup[check] = dominant_eigen_value[0]
         return dominant_eigen_value[0]
 
@@ -353,9 +353,11 @@ class SPCA:
         self.Rval = best_val
 
     def column_norm_1_fast(self):
-        R = argsort(self.abs_A2,axis = 1)[:,self.n-self.s:].tolist()
         best_val = 0
-        for i in range(self.n):
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        top_s_2 = argsorted[:self.s * self.search_multiplier]
+        R = argsort(self.abs_A2[top_s_2,:],axis = 1)[:,self.n-self.s:].tolist()
+        for i in range(self.s * self.search_multiplier):
             current = sorted(R[i])
             R[i] = current.copy()
             val = self.eigen_upperbound(current)
@@ -367,7 +369,7 @@ class SPCA:
         self.Rval = best_val
         
     def correlation_cw(self):
-        R = []
+        best_set = []
         best_val = 0
         for i in range(self.n):
             current = [i]
@@ -384,36 +386,13 @@ class SPCA:
             val = self.eigen_upperbound(current)
             if val > best_val:
                 best_val = val
-            R.append(current + [val])
+                best_set = current
 
-        self.R2 = R
+        self.R2 = best_set
         self.R2val = best_val
         
-    def column_norm_2(self):
-        R = argsort(self.squared_A2,axis = 1)[:,self.n-self.s:].tolist()
-        Rc = R.copy()
-        RC = R.copy()
-        RF = R.copy()
-        best_val = 0
-        for i in range(self.n):
-            current = sorted(R[i])
-            R[i] = current.copy()
-            val = self.eigen_upperbound(current)
-            if val > best_val:
-                best_val = val
-            R[i].append(val)
-            Rc.append(current + [sum(self.abs_A2[i,current])])
-            RC.append(current + [sum(self.abs_A2[current,:][:,current])])
-            RF.append(current + [sum(self.squared_A2[current,:][:,current])])
-         
-        self.R3 = R
-        self.R3c = Rc
-        self.R3C = RC
-        self.R3F = RF
-        self.R3val = best_val
-        
     def frobenius_cw(self):
-        R = []
+        best_set = []
         best_val = 0
         for i in range(self.n):
             current = [i]
@@ -430,9 +409,64 @@ class SPCA:
             val = self.eigen_upperbound(current)
             if val > best_val:
                 best_val = val
-            R.append(current + [val])
+                best_set = current
 
-        self.R4 = R
+        self.R4 = best_set
+        self.R4val = best_val
+
+    def correlation_cw_fast(self):
+        visited = []
+        best_set = []
+        best_val = 0
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        top_s_2 = argsorted[:self.s * self.search_multiplier]
+        for i in top_s_2:
+            current = [i]
+            for j in range(self.s-1):
+                argsortk = argsort(sum(self.abs_A2[current,:],axis = 0))[-len(current)-1:][::-1]
+                k = 0
+                found = False
+                while not found and k < len(current) + 1:
+                    if argsortk[k] not in current:
+                        current.append(argsortk[k])
+                        found = True
+                    k += 1
+                if current in visited:
+                    break
+                else:
+                    visited.append(current.copy())
+            current = sorted(current)
+            val = self.eigen_upperboundl(current)
+            if val > best_val:
+                best_val = val
+                best_set = current
+
+        self.R2 = best_set
+        self.R2val = best_val
+        
+    def frobenius_cw_fast(self):
+        best_set = []
+        best_val = 0
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        top_s_2 = argsorted[:self.s * self.search_multiplier]
+        for i in top_s_2:
+            current = [i]
+            for j in range(self.s-1):
+                argsortk = argsort(sum(self.squared_A2[current,:],axis = 0))[-len(current)-1:]
+                k = 0
+                found = False
+                while not found and k < len(current) + 1:
+                    if argsortk[k] not in current:
+                        current.append(argsortk[k])
+                        found = True
+                    k += 1
+            current = sorted(current)
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+                best_set = current
+
+        self.R4 = best_set
         self.R4val = best_val
         
     def cholesky(self):
