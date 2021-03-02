@@ -43,9 +43,13 @@ class SPCA:
             
             self.A = A
             self.A2 = A.T.dot(A)
+            self.diag = diag(self.A2)
+            self.diag2 = self.diag ** 2
+            
             self.abs_A2 = abs(self.A2)
             self.squared_A2 = self.A2 ** 2
-            self.abs_A2s = self.abs_A2 - self.m * eye(self.n)
+            self.abs_A2s = self.abs_A2 - max(self.diag) * eye(self.n)
+ 
             
             self.tablelookup = {}
             """ lookup table to store and not solve for the same sparsity pattern multiple times"""
@@ -323,67 +327,36 @@ class SPCA:
                     break
             
         return C,best_value
-          
-    def column_norm_1(self):
-        R = argsort(self.abs_A2,axis = 1)[:,self.n-self.s:].tolist()
-        best_val = 0
-        for i in range(self.n):
-            current = sorted(R[i])
-            R[i] = current.copy()
-            val = self.eigen_upperbound(current)
-            if val > best_val:
-                best_val = val
-            R[i].append(val)
-         
-        self.R = R
-        self.Rval = best_val
-        
-    def column_norm_1l(self):
-        R = argsort(self.abs_A2,axis = 1)[:,self.n-self.s:].tolist()
-        best_val = 0
-        for i in range(self.n):
-            current = R[i]
-            R[i] = current.copy()
-            val = self.eigen_upperboundl(current)
-            if val > best_val:
-                best_val = val
-            R[i].append(val)
-         
-        self.R = R
-        self.Rval = best_val
 
-    def column_norm_1_fast(self):
+    def column_norm_1(self):
+        best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
         top_s_2 = argsorted[:self.s * self.search_multiplier]
         R = argsort(self.abs_A2[top_s_2,:],axis = 1)[:,self.n-self.s:].tolist()
         for i in range(self.s * self.search_multiplier):
-            current = sorted(R[i])
-            R[i] = current.copy()
-            val = self.eigen_upperbound(current)
+            val = self.eigen_upperbound(R[i])
             if val > best_val:
                 best_val = val
-            R[i].append(val)
+                best_set = R[i]
          
-        self.R = R
+        self.R = best_set
         self.Rval = best_val
-        
+
     def correlation_cw(self):
         best_set = []
         best_val = 0
-        for i in range(self.n):
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        top_s_2 = argsorted[:self.s * self.search_multiplier]
+        for i in top_s_2:
+            possible = list(range(self.n))
+            possible.pop(i)
             current = [i]
             for j in range(self.s-1):
-                argsortk = argsort(sum(self.abs_A2[current,:],axis = 0))[-len(current)-1:][::-1]
-                k = 0
-                found = False
-                while not found and k < len(current) + 1:
-                    if argsortk[k] not in current:
-                        current.append(argsortk[k])
-                        found = True
-                    k += 1
-            current = sorted(current)
-            val = self.eigen_upperbound(current)
+                k = argmax(sum(self.abs_A2[current,:][:,possible],axis = 0) + self.diag[possible])
+                current.append(possible[k])
+                del possible[k]
+            val = self.eigen_upperboundl(current)
             if val > best_val:
                 best_val = val
                 best_set = current
@@ -394,73 +367,16 @@ class SPCA:
     def frobenius_cw(self):
         best_set = []
         best_val = 0
-        for i in range(self.n):
-            current = [i]
-            for j in range(self.s-1):
-                argsortk = argsort(sum(self.squared_A2[current,:],axis = 0))[-len(current)-1:]
-                k = 0
-                found = False
-                while not found and k < len(current) + 1:
-                    if argsortk[k] not in current:
-                        current.append(argsortk[k])
-                        found = True
-                    k += 1
-            current = sorted(current)
-            val = self.eigen_upperbound(current)
-            if val > best_val:
-                best_val = val
-                best_set = current
-
-        self.R4 = best_set
-        self.R4val = best_val
-
-    def correlation_cw_fast(self):
-        visited = []
-        best_set = []
-        best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
         top_s_2 = argsorted[:self.s * self.search_multiplier]
         for i in top_s_2:
+            possible = list(range(self.n))
+            possible.pop(i)
             current = [i]
             for j in range(self.s-1):
-                argsortk = argsort(sum(self.abs_A2[current,:],axis = 0))[-len(current)-1:][::-1]
-                k = 0
-                found = False
-                while not found and k < len(current) + 1:
-                    if argsortk[k] not in current:
-                        current.append(argsortk[k])
-                        found = True
-                    k += 1
-                if current in visited:
-                    break
-                else:
-                    visited.append(current.copy())
-            current = sorted(current)
-            val = self.eigen_upperboundl(current)
-            if val > best_val:
-                best_val = val
-                best_set = current
-
-        self.R2 = best_set
-        self.R2val = best_val
-        
-    def frobenius_cw_fast(self):
-        best_set = []
-        best_val = 0
-        argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s_2 = argsorted[:self.s * self.search_multiplier]
-        for i in top_s_2:
-            current = [i]
-            for j in range(self.s-1):
-                argsortk = argsort(sum(self.squared_A2[current,:],axis = 0))[-len(current)-1:]
-                k = 0
-                found = False
-                while not found and k < len(current) + 1:
-                    if argsortk[k] not in current:
-                        current.append(argsortk[k])
-                        found = True
-                    k += 1
-            current = sorted(current)
+                k = argmax(sum(self.squared_A2[current,:][:,possible],axis = 0) + self.diag2[possible])
+                current.append(possible[k])
+                del possible[k]
             val = self.eigen_upperbound(current)
             if val > best_val:
                 best_val = val
