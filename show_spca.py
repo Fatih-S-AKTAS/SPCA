@@ -10,7 +10,7 @@ import cvxpy
 
 #%%
 
-A = random.normal(4,10,[200,50])
+A = random.normal(4,10,[200,24])
 
 # l,d,p = ldl(pitprops)
 # A = l
@@ -29,18 +29,17 @@ A = A/sA
 
 A2 = A.T.dot(A)
 
-#%%
-
-# A2 -= val * vec0.dot(vec0.T)
 
 #%%
 
-s = 10
+s = 6
 
 omega = SPCA(A,s)
 
+omega.search_multiplier = n/s
 
-omega.search_multiplier = 4
+solve_sdp = True
+
 
 #%%
 
@@ -148,6 +147,12 @@ print("expect       ",em_val)
 # print("thresholding ",spi_val)
 
 best_val = max(em_val,omega.Rval,omega.R2val,omega.R4val,chol_val2)
+
+#%%
+
+# pattern = omega.R2
+
+# omega.deflation_pattern(pattern)
 
 #%%
 
@@ -304,75 +309,74 @@ if n <= 25:
 # K = K/norm(K)
 
 #%%
+if solve_sdp:
+    A_F = norm(A2) ** 2
     
-A_F = norm(A2) ** 2
-
-X = zeros([n,n])
-y = 0
-# b = 80
-b = best_val
-beta0 = 1
-t = 0
-
-A3 = A2/norm(A2)
-b = b/norm(A2)
-constraint_diff = b
-while t <= 1:
-    t += 1
-    beta = beta0 * t ** 0.5
-    eta = 2/t
+    X = zeros([n,n])
+    y = 0
+    # b = 80
+    b = best_val
+    beta0 = 1
+    t = 0
     
-    # ful_matrix = K + A3 * (y + beta * constraint_diff)
-    val,vec = eigsh(X + A3 * (y + beta * constraint_diff),k = 1,tol = 1e-2,which = "SA")
-    # ful_val,ful_vec = eigh(sign(X)/beta + A3 * (y + beta * constraint_diff))
-    
-    X = (1 - eta) * X + eta * vec.dot(vec.T)
-    
-    constraint_diff = tensordot(A3,X) - b
-    print("constraint diff",constraint_diff)
-    
-    gamma = min(beta0,beta*eta ** 2/(constraint_diff ** 2))
-    y = y + gamma * (constraint_diff)
-d,v = eigsh(X,k=3)
-cgal = argsort(-1 * abs(v[:,-1]))[:s]
-cgal_val = omega.eigen_upperbound(cgal)
+    A3 = A2/norm(A2)
+    b = b/norm(A2)
+    constraint_diff = b
+    while t <= 4000:
+        t += 1
+        beta = beta0 * t ** 0.5
+        eta = 2/t
+        
+        # ful_matrix = K + A3 * (y + beta * constraint_diff)
+        val,vec = eigsh(X + A3 * (y + beta * constraint_diff),k = 1,tol = 1e-2,which = "SA")
+        # ful_val,ful_vec = eigh(sign(X)/beta + A3 * (y + beta * constraint_diff))
+        
+        X = (1 - eta) * X + eta * vec.dot(vec.T)
+        
+        constraint_diff = tensordot(A3,X) - b
+        print("constraint diff",constraint_diff)
+        
+        gamma = min(beta0,beta*eta ** 2/(constraint_diff ** 2))
+        y = y + gamma * (constraint_diff)
+    d,v = eigsh(X,k=3)
+    cgal = argsort(-1 * abs(v[:,-1]))[:s]
+    cgal_val = omega.eigen_upperbound(cgal)
 
 #%%
 
-A_F = norm(A2) ** 2
-
-X = zeros([n,n])
-y = 0
-# b = 80
-b = best_val
-beta0 = 1
-t = 0
-
-A3 = A2/norm(A2)
-b = b/norm(A2)
-constraint_diff = b
-while t <= 1:
-    t += 1
-    beta = beta0 * t ** 0.5
-    eta = 2/t
-    old_sign = sign(X)
-    # ful_matrix = K + A3 * (y + beta * constraint_diff)
-    val,vec = eigsh(old_sign / beta + A3 * (y + beta * constraint_diff),k = 1,tol = 1e-2,which = "SA")
-    # val,vec = eigsh(A3 * (y + beta * constraint_diff),k = 1,tol = 1e-2,which = "SA")
-    # ful_val,ful_vec = eigh(sign(X)/beta + A3 * (y + beta * constraint_diff))
-    
-    X = (1 - eta) * X + eta * vec.dot(vec.T)
-    new_sign = sign(X)
-    consistency = (old_sign + new_sign)/2
-    X = X * consistency
-    constraint_diff = tensordot(A3,X) - b
-    print("constraint diff",constraint_diff)
-    
-    gamma = min(beta0,beta*eta ** 2/(constraint_diff ** 2))
-    y = y + gamma * (constraint_diff)
-d,v = eigsh(X,k=3)
-cgal = argsort(-1 * abs(v[:,-1]))[:s]
-cgal_val = omega.eigen_upperbound(cgal)
+if solve_sdp:
+    # b = 80
+    b = best_val
+    L = ones([n,n])
+    A3 = A2/norm(A2)
+    b = b/norm(A2)
+    constraint_diff = b
+    beta0 = 1
+    for rew in range(4):
+        X = zeros([n,n])
+        y = 0
+        t = 0
+        while t <= 4000:
+            t += 1
+            beta = beta0 * t ** 0.5
+            eta = 2/t
+            
+            # ful_matrix = K + A3 * (y + beta * constraint_diff)
+            val,vec = eigsh(L * X + A3 * (y + beta * constraint_diff),k = 1,tol = 1e-2,which = "SA")
+            # ful_val,ful_vec = eigh(sign(X)/beta + A3 * (y + beta * constraint_diff))
+            
+            X = (1 - eta) * X + eta * vec.dot(vec.T)
+            
+            constraint_diff = tensordot(A3,X) - b
+            print("constraint diff",constraint_diff)
+            
+            gamma = min(beta0,beta*eta ** 2/(constraint_diff ** 2))
+            y = y + gamma * (constraint_diff)
+        L = 1/(1e-4 + abs(X)) ** 4
+        L = L/norm(L) * n
+        d,v = eigsh(X,k=3)
+        cgal = argsort(-1 * abs(v[:,-1]))[:s]
+        cgal_val = omega.eigen_upperbound(cgal)
 
 #%%
 
@@ -442,97 +446,102 @@ if n <= 25:
 
 #%%
 
-A_F = norm(A2) ** 2
-
-X = zeros([n,n])
-momentum = zeros([n,n])
-y = 0
-# b = 80
-b = best_val
-beta0 = 1
-t = 0
-
-A3 = A2/norm(A2)
-b = b/norm(A2)
-constraint_diff = b
-# teta0 = 1e-2
-teta0 = 1/sqrt(n) * 0.1
-
-while t <= 1:
-    t += 1
-    beta = beta0 * t ** 0.5
-    teta = teta0/beta
-    eta = 2/t
+if solve_sdp:
+    A_F = norm(A2) ** 2
     
+    X = zeros([n,n])
+    momentum = zeros([n,n])
+    y = 0
+    # b = 80
+    b = best_val
+    beta0 = 1
+    t = 0
     
-    gradient = X.copy()
-    old_sign = sign(X)
-    i,j = where(X > teta)
-    k,l = where(X < -teta)
-    gradient[i,j] = teta
-    gradient[k,l] = -teta
+    A3 = A2/norm(A2)
+    b = b/norm(A2)
+    constraint_diff = b
+    # teta0 = 1e-2
+    teta0 = 1/sqrt(n) * 0.1
     
-    val,vec = eigsh(gradient + A3 * (y + beta * constraint_diff),k = 1,tol = 1e-2,which = "SA")
-
-    X = (1 - eta) * X + eta * vec.dot(vec.T)
-
-    new_sign = sign(X)
-    consistency = sign(old_sign + new_sign)
-    # X = X * consistency
-    constraint_diff = tensordot(A3,X) - b
-    print("constraint diff",constraint_diff)
+    while t <= 20000:
+        t += 1
+        beta = beta0 * t ** 0.5
+        teta = teta0/beta
+        
+        # eta = 2/t
+        
+        eta = 4/ t
+        
+        
+        gradient = X.copy()
+        old_sign = sign(X)
+        i,j = where(X > teta)
+        k,l = where(X < -teta)
+        gradient[i,j] = teta
+        gradient[k,l] = -teta
+        
+        val,vec = eigsh(gradient + A3 * (y + beta * constraint_diff),k = 1,tol = 1e-2,which = "SA")
     
-    gamma = min(beta0,beta*eta ** 2/(constraint_diff ** 2))
-    y = y + gamma * (constraint_diff)
-d2,v2 = eigsh(X,k=3)
-cgal2 = argsort(-1 * abs(v2[:,-1]))[:s]
-cgal_val2 = omega.eigen_upperbound(cgal2)
-sv2 = v2[:,-1].copy()
-sv2[abs(sv2)<1e-2 * 5] = 0
-fake_pattern = where(abs(v2[:,-1]) > 1e-2 *5)[0]
+        X = (1 - eta) * X + eta * vec.dot(vec.T)
+    
+        new_sign = sign(X)
+        consistency = sign(old_sign + new_sign)
+        # X = X * consistency
+        constraint_diff = tensordot(A3,X) - b
+        print("constraint diff",constraint_diff)
+        
+        gamma = min(beta0,beta*eta ** 2/(constraint_diff ** 2))
+        y = y + gamma * (constraint_diff)
+    d2,v2 = eigsh(X,k=3)
+    cgal2 = argsort(-1 * abs(v2[:,-1]))[:s]
+    cgal_val2 = omega.eigen_upperbound(cgal2)
+    sv2 = v2[:,-1].copy()
+    sv2[abs(sv2)<1e-2 * 5] = 0
+    fake_pattern = where(abs(v2[:,-1]) > 1e-2 *5)[0]
 
 #%%
 
-A_F = norm(A2) ** 2
-
-X = zeros([n,n])
-y = 0
-# b = 80
-b = best_val
-beta0 = 1
-t = 0
-
-A3 = A2/norm(A2)
-b = b/norm(A2)
-constraint_diff = b
-# teta0 = 1e-2
-teta0 = 1/n * 0.1
-
-while t <= 1:
-    t += 1
-    beta = beta0 * t ** 0.5
-    teta = teta0/beta
-    eta = 2/t
+if solve_sdp:
+    A_F = norm(A2) ** 2
     
-    gradient = X.copy()
-    # old_sign = sign(X)
-    i,j = where(X > teta)
-    k,l = where(X < -teta)
-    gradient[i,j] = teta
-    gradient[k,l] = -teta
+    X = zeros([n,n])
+    y = 0
+    # b = 80
+    b = best_val
+    beta0 = 1
+    t = 0
     
-    val,vec = eigsh(gradient + A3 * beta * constraint_diff,k = 1,tol = 1e-2,which = "SA")
+    A3 = A2/norm(A2)
+    b = b/norm(A2)
+    constraint_diff = b
+    # teta0 = 1e-2
+    teta0 = 1/n * 0.1
     
-    X = (1 - eta) * X + eta * vec.dot(vec.T)
-    # new_sign = sign(X)
-    # consistency = sign(old_sign + new_sign)
-    # X = X * consistency
-    constraint_diff = tensordot(A3,X) - b
-    print("constraint diff",constraint_diff)
-    
-d2,v2 = eigsh(X,k=3)
-cgal2 = argsort(-1 * abs(v2[:,-1]))[:s]
-cgal_val2 = omega.eigen_upperbound(cgal2)
+    while t <= 40000:
+        t += 1
+        beta = beta0 * t ** 0.5
+        teta = teta0/beta
+        eta = 2/t
+        
+        gradient = X.copy()
+        # old_sign = sign(X)
+        i,j = where(X > teta)
+        k,l = where(X < -teta)
+        gradient[i,j] = teta
+        gradient[k,l] = -teta
+        
+        val,vec = eigsh(gradient + A3 * beta * constraint_diff,k = 1,tol = 1e-2,which = "SA")
+        
+        X = (1 - eta) * X + eta * vec.dot(vec.T)
+        # new_sign = sign(X)
+        # consistency = sign(old_sign + new_sign)
+        # X = X * consistency
+        constraint_diff = tensordot(A3,X) - b
+        print("constraint diff",constraint_diff)
+        
+    d2,v2 = eigsh(X,k=3)
+    cgal2 = argsort(-1 * abs(v2[:,-1]))[:s]
+    cgal_val2 = omega.eigen_upperbound(cgal2)
 
 
 #%%

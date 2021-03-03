@@ -73,6 +73,29 @@ class SPCA:
     def all_eigens(self,ind):
         return eigvalsh(self.A2[:,ind][ind,:])
     
+    def deflation_vector(self,vector):
+        dual_vector = self.A.dot(vector)
+        value = vector.T.dot(self.A2.dot(vector))
+        
+        self.A = self.A - dual_vector.dot(vector.T)
+        self.A2 = self.A2 - value * vector.dot(vector.T)
+        self.diag = diag(self.A2)
+        self.diag2 = self.diag ** 2
+        self.abs_A2 = abs(self.A2)
+        self.squared_A2 = self.A2 ** 2
+        self.abs_A2s = self.abs_A2 - max(self.diag) * eye(self.n)
+        
+    def deflation_sparse_vector(self,svector,indices):
+        vector = zeros([self.n,1])
+        vector[indices] = svector
+        return self.deflation_vector(vector)
+
+    def deflation_pattern(self,pattern):
+        value,svector = self.eigen_pair(pattern)
+        vector = zeros([self.n,1])
+        vector[pattern] = svector
+        return self.deflation_vector(vector)
+    
     def eigen_upperbound(self,ind):
         dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
         return dominant_eigen_value[0]
@@ -80,6 +103,12 @@ class SPCA:
     def eigen_pair(self,ind):
         eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
         return eigenvalue,eigenvector
+    
+    def eigen_pair0(self,ind):
+        eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
+        eigenvector_padded = zeros([self.n,1])
+        eigenvector_padded[ind] = eigenvector
+        return eigenvalue,eigenvector,eigenvector_padded
     
     def eigen_upperboundl(self,ind):
         check = str(ind)
@@ -332,9 +361,10 @@ class SPCA:
         best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s_2 = argsorted[:self.s * self.search_multiplier]
+        # top_s_2 = argsorted[:self.s * self.search_multiplier]
+        top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
         R = argsort(self.abs_A2[top_s_2,:],axis = 1)[:,self.n-self.s:].tolist()
-        for i in range(self.s * self.search_multiplier):
+        for i in range(int(self.s * self.search_multiplier)):
             val = self.eigen_upperbound(R[i])
             if val > best_val:
                 best_val = val
@@ -347,7 +377,8 @@ class SPCA:
         best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s_2 = argsorted[:self.s * self.search_multiplier]
+        # top_s_2 = argsorted[:self.s * self.search_multiplier]
+        top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
         for i in top_s_2:
             possible = list(range(self.n))
             possible.pop(i)
@@ -368,7 +399,8 @@ class SPCA:
         best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s_2 = argsorted[:self.s * self.search_multiplier]
+        # top_s_2 = argsorted[:self.s * self.search_multiplier]
+        top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
         for i in top_s_2:
             possible = list(range(self.n))
             possible.pop(i)
