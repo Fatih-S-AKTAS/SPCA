@@ -41,7 +41,7 @@ import pickle
 import time
 
 from nesterov_functions import *
-from static_questions import pitprops,at_t_faces
+# from static_questions import pitprops,at_t_faces
 
 def run_formulation(args, A_centered, X0, p):
     x = X0/LA.norm(X0.A)
@@ -171,10 +171,10 @@ A_centered = A - A.mean(0)
 # d,p = LA.eigh(pitprops)
 # A_centered = np.diag(d ** 0.5).dot(p.T)
 
-A_centered = at_t_faces
-# A_centered = np.random.randn(200,1000)
-A_centered = A_centered - A_centered.mean(0)
-A_centered = A_centered/A_centered.std(axis=0)
+# A_centered = at_t_faces
+A_centered = np.random.randn(200,1000)
+# A_centered = A_centered - A_centered.mean(0)
+# A_centered = A_centered/A_centered.std(axis=0)
 
 n,p = np.shape(A_centered)
 
