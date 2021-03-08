@@ -1,6 +1,6 @@
 from scipy.linalg import ldl
 from numpy import isnan,Inf,float64,ndarray,shape,std,copy,argmax,zeros,argsort,where,random,diag,sum,eye,\
-    hstack,stack,product,sign,sqrt,arange,delete
+    hstack,stack,product,sign,sqrt,arange,delete,fill_diagonal
 from scipy.sparse.linalg import eigsh
 from numpy.linalg import qr,norm,eigvalsh,cholesky
 from queue import PriorityQueue
@@ -42,15 +42,16 @@ class SPCA:
             self.out = 1
             """ initializing the output choice of algorithm """
             
-            self.A0 = A
-            self.A = A
+            self.A0 = A.copy()
+            self.A = A.copy()
             self.A2 = A.T.dot(A)
             self.diag = diag(self.A2)
             self.diag2 = self.diag ** 2
             
             self.abs_A2 = abs(self.A2)
             self.squared_A2 = self.A2 ** 2
-            self.abs_A2s = self.abs_A2 - max(self.diag) * eye(self.n)
+            self.abs_A2s = self.abs_A2.copy()
+            fill_diagonal(self.abs_A2s,0)
  
             
             self.tablelookup = {}
@@ -73,35 +74,27 @@ class SPCA:
         return eigvalsh(self.A2[:,ind][ind,:])
     
     def restart(self):
-        self.A = self.A0
+        self.A = self.A0.copy()
         self.A2 = self.A.T.dot(self.A)
         self.diag = diag(self.A2)
         self.diag2 = self.diag ** 2
         
         self.abs_A2 = abs(self.A2)
         self.squared_A2 = self.A2 ** 2
-        self.abs_A2s = self.abs_A2 - max(self.diag) * eye(self.n)
-    
-    def deflation_vector(self,vector):
-        dual_vector = self.A.dot(vector)
-        self.A = self.A - dual_vector.dot(vector.T)
-        self.A2 = self.A.T.dot(self.A)
+        self.abs_A2s = self.abs_A2.copy()
+        fill_diagonal(self.abs_A2s,0)
+        
+    def deflation_sparse_vector(self,svector,indices):        
+        dual_vector = self.A[:,indices].dot(svector)
+        self.A[:,indices] = self.A[:,indices] - dual_vector.dot(svector.T)
+        self.A2[:,indices] = self.A.T.dot(self.A[:,indices])
+        self.A2[indices,:] = self.A2[:,indices].T
         self.diag = diag(self.A2)
         self.diag2 = self.diag ** 2
         self.abs_A2 = abs(self.A2)
         self.squared_A2 = self.A2 ** 2
-        self.abs_A2s = self.abs_A2 - max(self.diag) * eye(self.n)
-        
-    def deflation_sparse_vector(self,svector,indices):
-        vector = zeros([self.n,1])
-        vector[indices] = svector
-        return self.deflation_vector(vector)
-
-    def deflation_pattern(self,pattern):
-        value,svector = self.eigen_pair(pattern)
-        vector = zeros([self.n,1])
-        vector[pattern] = svector
-        return self.deflation_vector(vector)
+        self.abs_A2s = self.abs_A2.copy()
+        fill_diagonal(self.abs_A2s,0)
     
     def eigen_upperbound(self,ind):
         dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)

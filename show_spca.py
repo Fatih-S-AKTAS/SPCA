@@ -1,9 +1,10 @@
 import gc
 
 sadge = gc.collect()
+
 #%%
 from PCA_SPAR import SPCA
-from numpy import random,reshape,mean,ones,array,sign,arange,delete,log,tensordot,unique,fill_diagonal,shape,std
+from numpy import random,reshape,mean,ones,array,sign,arange,delete,log,tensordot,unique,fill_diagonal,shape,std,zeros
 from numpy.linalg import matrix_rank,qr
 from scipy.linalg import eigvalsh,ldl,det,eigh,inv,pinv,cholesky,norm
 from scipy.sparse.linalg import eigsh
@@ -15,7 +16,7 @@ from matplotlib.pyplot import *
 
 #%%
 
-A = random.normal(4,10,[100,1000])
+A = random.normal(4,10,[20,40])
 
 # l,d,p = ldl(pitprops)
 # A = l
@@ -36,14 +37,16 @@ A2 = A.T.dot(A)
 
 #%%
 
-s = 30
+s = 10
 k = 4
 omega = SPCA(A,s)
 
-omega.search_multiplier = 20
+omega.search_multiplier = 4
 
 solve_sdp = False
 
+# gd,gd_val = omega.column_norm_1()
+# gd_val2,gd_vector = omega.eigen_pair(gd)
 
 t0 = time.process_time()
 pattern1,eigens1,load1,component1,variance1 = omega.find_component("GD",k)
@@ -77,7 +80,7 @@ omega.restart()
 print("Path/Chol done ")
 
 t10 = time.process_time()
-pattern6,eigens6,load6,component6,variance6 = omega.find_component("PCW",k)
+# pattern6,eigens6,load6,component6,variance6 = omega.find_component("PCW",k)
 t11 = time.process_time()
 omega.restart()
 print("PCW done ")
@@ -102,7 +105,7 @@ print("correlation  ",sum(variance2))
 print("frobenius    ",sum(variance3))
 print("em           ",sum(variance4))
 print("cholesky     ",sum(variance5))
-print("PCW          ",sum(variance6))
+# print("PCW          ",sum(variance6))
 # print("GCW          ",sum(variance7))
 
 #%%
