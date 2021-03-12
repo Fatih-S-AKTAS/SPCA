@@ -79,10 +79,10 @@ class SPCA:
     
     def all_eigens(self,ind):
         return eigvalsh(self.A2[:,ind][ind,:])
-    
+
     def restart(self):
         print("res başladı")
-        self.A = self.A0 + 0
+        self.A = self.A0.copy()
         self.A2 = self.A.T.dot(self.A)
         self.diag = diag(self.A2)
         self.diag2 = self.diag ** 2
