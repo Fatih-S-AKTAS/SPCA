@@ -4,112 +4,305 @@ sadge = gc.collect()
 
 #%%
 from PCA_SPAR import SPCA
-from numpy import random,reshape,mean,ones,array,sign,arange,delete,log,tensordot,unique,fill_diagonal,shape,std,zeros
+from numpy import random,reshape,mean,ones,array,sign,arange,delete,log,tensordot,unique,fill_diagonal,shape,std,\
+    zeros,where,linspace,load
 from numpy.linalg import matrix_rank,qr
 from scipy.linalg import eigvalsh,ldl,det,eigh,inv,pinv,cholesky,norm
 from scipy.sparse.linalg import eigsh
 from scipy.special import huber
-# from static_questions import * 
-from matplotlib.pyplot import *
+import time
+# from static_questions import at_t_faces
+from matplotlib.pyplot import plot,grid,xlabel,ylabel,legend,title,figure
 # import cvxpy
 # from nesterov_wrapper import run_formulation
 
 #%%
 
-A = random.normal(4,10,[20,40])
+# A = random.normal(4,10,[400,600])
 
 # l,d,p = ldl(pitprops)
 # A = l
 
 # A = at_t_faces
+A = load("at_t_faces_save.npy")
 
 m,n = shape(A)
-
+    
 mA = reshape(mean(A,axis = 0),[1,n])
 
 A = A - ones([m,1]).dot(mA)
 
 sA = std(A,axis = 0)
-
+# sA = std(A,axis = 0) * (1 + 0.01 * random.randn(n))
 A = A/sA
 
 A2 = A.T.dot(A)
 
 #%%
 
-s = 10
-k = 4
+# sadge1 = gc.collect()
+
+s = 20
+
 omega = SPCA(A,s)
 
-omega.search_multiplier = 4
-
-solve_sdp = False
-
-# gd,gd_val = omega.column_norm_1()
-# gd_val2,gd_vector = omega.eigen_pair(gd)
-
-t0 = time.process_time()
-pattern1,eigens1,load1,component1,variance1 = omega.find_component("GD",k)
-t1 = time.process_time()
-omega.restart()
-print("gerschgorin done ")
-
-
-t2 = time.process_time()
-pattern2,eigens2,load2,component2,variance2 = omega.find_component("CCW",k)
-t3 = time.process_time()
-omega.restart()
-print("CCW done ")
-
-t4 = time.process_time()
-pattern3,eigens3,load3,component3,variance3 = omega.find_component("FCW",k)
-t5 = time.process_time()
-omega.restart()
-print("FCW done ")
-
-t6 = time.process_time()
-pattern4,eigens4,load4,component4,variance4 = omega.find_component("EM",k)
-t7 = time.process_time()
-omega.restart()
-print("EM done ")
-
-t8 = time.process_time()
-pattern5,eigens5,load5,component5,variance5 = omega.find_component("Path",k)
-t9 = time.process_time()
-omega.restart()
-print("Path/Chol done ")
-
-t10 = time.process_time()
-# pattern6,eigens6,load6,component6,variance6 = omega.find_component("PCW",k)
-t11 = time.process_time()
-omega.restart()
-print("PCW done ")
-
-t12 = time.process_time()
-# pattern7,eigens7,load7,component7,variance7 = omega.find_component("GCW",k)
-t13 = time.process_time()
-omega.restart()
-print("GCW done ")
-
-print("----------------------------")
-print("gerschgorin  ",t1-t0)
-print("correlation  ",t3-t2)
-print("frobenius    ",t5-t4)
-print("em           ",t7-t6)
-print("cholesky     ",t9-t8)
-print("PCW          ",t11-t10)
-print("GCW          ",t13-t12)
-print("----------------------------")
-print("gerschgorin  ",sum(variance1))
-print("correlation  ",sum(variance2))
-print("frobenius    ",sum(variance3))
-print("em           ",sum(variance4))
-print("cholesky     ",sum(variance5))
-# print("PCW          ",sum(variance6))
-# print("GCW          ",sum(variance7))
 
 #%%
 
+# omega.search_multiplier = 200/s
+# k = 1
+
+# solve_sdp = False
+
+# # gd,gd_val = omega.column_norm_1()
+# # gd_val2,gd_vector = omega.eigen_pair(gd)
+
+# t0 = time.process_time()
+# pattern1,eigens1,load1,component1,variance1 = omega.find_component("GD",k)
+# # gd_set,gd_val = omega.column_norm_1()
+# t1 = time.process_time()
+# omega.restart()
+# print("gerschgorin done ")
+
+# # sadge1 = gc.collect()
+
+# t2 = time.process_time()
+# pattern2,eigens2,load2,component2,variance2 = omega.find_component("CCW",k)
+# # ccw_set,ccw_val = omega.correlation_cw()
+# t3 = time.process_time()
+# omega.restart()
+# print("CCW done ")
+
+# # sadge1 = gc.collect()
+
+# t4 = time.process_time()
+# pattern3,eigens3,load3,component3,variance3 = omega.find_component("FCW",k)
+# # fcw_set,fcw_val = omega.frobenius_cw()
+# t5 = time.process_time()
+# omega.restart()
+# print("FCW done ")
+
+# # sadge1 = gc.collect()
+
+# t6 = time.process_time()
+# pattern4,eigens4,load4,component4,variance4 = omega.find_component("EM",k)
+# # em_set,em_val = omega.EM()
+# t7 = time.process_time()
+# omega.restart()
+# print("EM done ")
+
+# # sadge1 = gc.collect()
+
+# t8 = time.process_time()
+# pattern5,eigens5,load5,component5,variance5 = omega.find_component("Path",k)
+# # path_set,path_val = omega.cholesky_mk2()
+# t9 = time.process_time()
+# omega.restart()
+# print("Path/Chol done ")
+
+# # sadge1 = gc.collect()
+
+# t14 = time.process_time()
+# # pattern8,eigens8,load8,component8,variance8 = omega.find_component("Path_mk2",k)
+# t15 = time.process_time()
+# # omega.restart()
+# print("Path/Chol_mk2 done ")
+
+# # sadge1 = gc.collect()
+
+# t10 = time.process_time()
+# # pattern6,eigens6,load6,component6,variance6 = omega.find_component("PCW",k)
+# # pcw_set,pcw_val = omega.PCW1_iterative()
+# t11 = time.process_time()
+# # omega.restart()
+# print("PCW done ")
+
+# # sadge1 = gc.collect()
+
+# t12 = time.process_time()
+# pattern7,eigens7,load7,component7,variance7 = omega.find_component("nesterov",k)
+# # nesterov_set,nesterov_val = omega.nesterov()
+# t13 = time.process_time()
+# omega.restart()
+# print("GCW done ")
+# # sadge1 = gc.collect()
+
+# print("----------------------------")
+# print("gerschgorin  ",t1-t0)
+# print("correlation  ",t3-t2)
+# print("frobenius    ",t5-t4)
+# print("em           ",t7-t6)
+# print("cholesky     ",t9-t8)
+# print("cholesky mk2 ",t15-t14)
+# print("PCW          ",t11-t10)
+# print("nesterov     ",t13-t12)
+# print("----------------------------")
+# print("gerschgorin  ",sum(variance1))
+# print("correlation  ",sum(variance2))
+# print("frobenius    ",sum(variance3))
+# print("em           ",sum(variance4))
+# print("cholesky     ",sum(variance5))
+# # print("cholesky mk2 ",sum(variance8))
+# # print("PCW          ",sum(variance6))
+# print("nesterov     ",sum(variance7))
+    
+#%%
+
+s_var = zeros([10,6])
+s_cpu = zeros([10,6])
+
+for iteration in range(1,5):
+    # sadge1 = gc.collect()
+    sparsity = iteration * 5
+    omega.s = sparsity
+    omega.args["sparsity"] = sparsity
+    omega.search_multiplier = 400/sparsity
+    k = 1
+    
+    solve_sdp = False
+    
+    # gd,gd_val = omega.column_norm_1()
+    # gd_val2,gd_vector = omega.eigen_pair(gd)
+    
+    t0 = time.process_time()
+    pattern1,eigens1,load1,component1,variance1 = omega.find_component("GD",k)
+    # gd_set,gd_val = omega.column_norm_1()
+    t1 = time.process_time()
+    omega.restart()
+    print("gerschgorin done ")
+    
+    # sadge1 = gc.collect()
+    
+    t2 = time.process_time()
+    pattern2,eigens2,load2,component2,variance2 = omega.find_component("CCW",k)
+    # ccw_set,ccw_val = omega.correlation_cw()
+    t3 = time.process_time()
+    omega.restart()
+    print("CCW done ")
+    
+    # sadge1 = gc.collect()
+    
+    t4 = time.process_time()
+    pattern3,eigens3,load3,component3,variance3 = omega.find_component("FCW",k)
+    # fcw_set,fcw_val = omega.frobenius_cw()
+    t5 = time.process_time()
+    omega.restart()
+    print("FCW done ")
+    
+    # sadge1 = gc.collect()
+    
+    t6 = time.process_time()
+    pattern4,eigens4,load4,component4,variance4 = omega.find_component("EM",k)
+    # em_set,em_val = omega.EM()
+    t7 = time.process_time()
+    omega.restart()
+    print("EM done ")
+    
+    # sadge1 = gc.collect()
+    
+    t8 = time.process_time()
+    pattern5,eigens5,load5,component5,variance5 = omega.find_component("Path",k)
+    # path_set,path_val = omega.cholesky_mk2()
+    t9 = time.process_time()
+    omega.restart()
+    print("Path/Chol done ")
+    
+    # sadge1 = gc.collect()
+    
+    t14 = time.process_time()
+    # pattern8,eigens8,load8,component8,variance8 = omega.find_component("Path_mk2",k)
+    t15 = time.process_time()
+    # omega.restart()
+    print("Path/Chol_mk2 done ")
+    
+    # sadge1 = gc.collect()
+    
+    t10 = time.process_time()
+    # pattern6,eigens6,load6,component6,variance6 = omega.find_component("PCW",k)
+    # pcw_set,pcw_val = omega.PCW1_iterative()
+    t11 = time.process_time()
+    # omega.restart()
+    print("PCW done ")
+    
+    # sadge1 = gc.collect()
+    
+    t12 = time.process_time()
+    pattern7,eigens7,load7,component7,variance7 = omega.find_component("nesterov",k)
+    # nesterov_set,nesterov_val = omega.nesterov()
+    t13 = time.process_time()
+    omega.restart()
+    print("GCW done ")
+    # sadge1 = gc.collect()
+    
+    print("----------------------------")
+    print("gerschgorin  ",t1-t0)
+    print("correlation  ",t3-t2)
+    print("frobenius    ",t5-t4)
+    print("em           ",t7-t6)
+    print("cholesky     ",t9-t8)
+    print("cholesky mk2 ",t15-t14)
+    print("PCW          ",t11-t10)
+    print("nesterov     ",t13-t12)
+    print("----------------------------")
+    print("gerschgorin  ",sum(variance1))
+    print("correlation  ",sum(variance2))
+    print("frobenius    ",sum(variance3))
+    print("em           ",sum(variance4))
+    print("cholesky     ",sum(variance5))
+    # print("cholesky mk2 ",sum(variance8))
+    # print("PCW          ",sum(variance6))
+    print("nesterov     ",sum(variance7))
+    
+    iteration = iteration - 1
+    s_var[iteration,0] = sum(variance1)
+    s_var[iteration,1] = sum(variance2)
+    s_var[iteration,2] = sum(variance3)
+    s_var[iteration,3] = sum(variance4)
+    s_var[iteration,4] = sum(variance5)
+    s_var[iteration,5] = sum(variance7)
+
+    s_cpu[iteration,0] = t1-t0
+    s_cpu[iteration,1] = t3-t2
+    s_cpu[iteration,2] = t5-t4
+    s_cpu[iteration,3] = t7-t6
+    s_cpu[iteration,4] = t9-t8
+    s_cpu[iteration,5] = t13-t12
+    sadge = gc.collect()
+
+#%%
+
+sparsity = arange(5,55,5)
+
+varf = figure()
+grid(True)
+plot(sparsity,s_var[:,0],color = "blue")
+plot(sparsity,s_var[:,1],color = "red")
+plot(sparsity,s_var[:,2],color = "green")
+plot(sparsity,s_var[:,3],color = "orange")
+plot(sparsity,s_var[:,4],color = "cyan")
+plot(sparsity,s_var[:,5],color = "purple")
+legend(["GD","CCW","FCW","EM","Path","GPower"])
+xlabel("Sparsity")
+ylabel("Variance")
+title("Variance Against Sparisty Level")
+
+cpuf = figure()
+grid(True)
+plot(sparsity,s_cpu[:,0],color = "blue")
+plot(sparsity,s_cpu[:,1],color = "red")
+plot(sparsity,s_cpu[:,2],color = "green")
+plot(sparsity,s_cpu[:,3],color = "orange")
+plot(sparsity,s_cpu[:,4],color = "cyan")
+plot(sparsity,s_cpu[:,5],color = "purple")
+legend(["GD","CCW","FCW","EM","Path","GPower"])
+xlabel("Sparsity")
+ylabel("CPU time (s)")
+title("CPU time Against Sparisty Level")
+
+varf.savefig("at_t_variance.eps",format = "eps")
+cpuf.savefig("at_t_cpu.eps",format = "eps")
+
+#%%
 # cvxpy 1 norm constraint + trace maximization
 if n <= 25:
     X = cvxpy.Variable(shape = (n,n),symmetric = True)

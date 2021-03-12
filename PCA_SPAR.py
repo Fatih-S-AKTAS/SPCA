@@ -1,9 +1,12 @@
 from scipy.linalg import ldl
-from numpy import isnan,Inf,float64,ndarray,shape,std,copy,argmax,zeros,argsort,where,random,diag,sum,eye,\
-    hstack,stack,product,sign,sqrt,arange,delete,fill_diagonal
+from numpy import isnan,Inf,float64,ndarray,shape,std,copy,argmax,zeros,argsort,where,diag,sum,eye,\
+    hstack,stack,product,sign,sqrt,arange,delete,fill_diagonal,absolute
 from scipy.sparse.linalg import eigsh
+from scipy.sparse import random
 from numpy.linalg import qr,norm,eigvalsh,cholesky
 from queue import PriorityQueue
+from nesterov_functions import CustomDistribution
+from nesterov_wrapper import run_formulation
 import time
 
 
@@ -48,10 +51,10 @@ class SPCA:
             self.diag = diag(self.A2)
             self.diag2 = self.diag ** 2
             
-            self.abs_A2 = abs(self.A2)
-            self.squared_A2 = self.A2 ** 2
-            self.abs_A2s = self.abs_A2.copy()
-            fill_diagonal(self.abs_A2s,0)
+            # self.abs_A2 = abs(self.A2)
+            # self.squared_A2 = self.A2 ** 2
+            # self.abs_A2s = self.abs_A2.copy()
+            # fill_diagonal(self.abs_A2s,0)
  
             
             self.tablelookup = {}
@@ -62,6 +65,10 @@ class SPCA:
             self.eigenvectors = []
             
             self.search_multiplier = 10
+            self.nesterov_trial = 10
+            self.args = {'formulation': 'L2var_L0cons', 'dataname': 'ATandT_Database_of_Faces', 'dataDir': './data/',\
+    'resultsDir': './results/', 'seed': 1, 'density_of_SP': 1, 'sparsity': self.s, 'tol': 1e-06, \
+        'maxIter': 200, 'numOfTrials': self.nesterov_trial, 'stabilityIter': 30, 'incDelta': 0.001}
 
     def show(self,ind):
         print(self.A2[:,ind][ind,:])
@@ -74,15 +81,16 @@ class SPCA:
         return eigvalsh(self.A2[:,ind][ind,:])
     
     def restart(self):
-        self.A = self.A0.copy()
+        print("res başladı")
+        self.A = self.A0 + 0
         self.A2 = self.A.T.dot(self.A)
         self.diag = diag(self.A2)
         self.diag2 = self.diag ** 2
-        
-        self.abs_A2 = abs(self.A2)
-        self.squared_A2 = self.A2 ** 2
-        self.abs_A2s = self.abs_A2.copy()
-        fill_diagonal(self.abs_A2s,0)
+        print("res bitti")
+        # self.abs_A2 = abs(self.A2)
+        # self.squared_A2 = self.A2 ** 2
+        # self.abs_A2s = self.abs_A2.copy()
+        # fill_diagonal(self.abs_A2s,0)
         
     def deflation_sparse_vector(self,svector,indices):        
         dual_vector = self.A[:,indices].dot(svector)
@@ -91,10 +99,11 @@ class SPCA:
         self.A2[indices,:] = self.A2[:,indices].T
         self.diag = diag(self.A2)
         self.diag2 = self.diag ** 2
-        self.abs_A2 = abs(self.A2)
-        self.squared_A2 = self.A2 ** 2
-        self.abs_A2s = self.abs_A2.copy()
-        fill_diagonal(self.abs_A2s,0)
+        
+        # self.abs_A2 = abs(self.A2)
+        # self.squared_A2 = self.A2 ** 2
+        # self.abs_A2s = self.abs_A2.copy()
+        # fill_diagonal(self.abs_A2s,0)
     
     def eigen_upperbound(self,ind):
         dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
@@ -111,7 +120,6 @@ class SPCA:
         return eigenvalue,eigenvector,eigenvector_padded
     
     def SPI(self):
-        """ Sparse Power Iteration """
         val,x1 = self.eigen_pair(list(range(self.n)))
         x1t = zeros([self.n,1])
         t = 0
@@ -260,7 +268,8 @@ class SPCA:
                     best_index = i
             C = C + [P[best_index]]
             P.remove(P[best_index])
-        return self.PCW2(best_value[0],best_vector,P,C)
+        # return self.PCW2(best_value[0],best_vector,P,C)
+        return C,best_value[0]
             
     def PCW2(self,best_value,best_vector,P,C):
         len_p = len(P)
@@ -353,7 +362,7 @@ class SPCA:
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
         # top_s_2 = argsorted[:self.s * self.search_multiplier]
         top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
-        R = argsort(self.abs_A2[top_s_2,:],axis = 1)[:,self.n-self.s:].tolist()
+        R = argsort(absolute(self.A2[top_s_2,:]),axis = 1)[:,self.n-self.s:].tolist()
         for i in range(int(self.s * self.search_multiplier)):
             val = self.eigen_upperbound(R[i])
             if val > best_val:
@@ -362,7 +371,43 @@ class SPCA:
          
         return best_set,best_val
 
+    def column_norm_1_0(self):
+        best_set = []
+        best_val = 0
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        # top_s_2 = argsorted[:self.s * self.search_multiplier]
+        top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
+        R = argsort(self.abs_A2[top_s_2,:],axis = 1)[:,self.n-self.s:].tolist()
+        for i in range(int(self.s * self.search_multiplier)):
+            val = self.eigen_upperbound(R[i])
+            if val > best_val:
+                best_val = val
+                best_set = R[i]
+         
+        return best_set,best_val
+    
     def correlation_cw(self):
+        best_set = []
+        best_val = 0
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        # top_s_2 = argsorted[:self.s * self.search_multiplier]
+        top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
+        for i in top_s_2:
+            possible = list(range(self.n))
+            possible.pop(i)
+            current = [i]
+            for j in range(self.s-1):
+                k = argmax(sum(absolute(self.A2[current,:][:,possible]),axis = 0) + self.diag[possible])
+                current.append(possible[k])
+                del possible[k]
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+                best_set = current
+
+        return best_set,best_val
+
+    def correlation_cw_0(self):
         best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
@@ -382,8 +427,29 @@ class SPCA:
                 best_set = current
 
         return best_set,best_val
-        
+    
     def frobenius_cw(self):
+        best_set = []
+        best_val = 0
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        # top_s_2 = argsorted[:self.s * self.search_multiplier]
+        top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
+        for i in top_s_2:
+            possible = list(range(self.n))
+            possible.pop(i)
+            current = [i]
+            for j in range(self.s-1):
+                k = argmax(sum(self.A2[current,:][:,possible] ** 2,axis = 0) + self.diag2[possible])
+                current.append(possible[k])
+                del possible[k]
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+                best_set = current
+
+        return best_set,best_val
+
+    def frobenius_cw_0(self):
         best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
@@ -403,7 +469,7 @@ class SPCA:
                 best_set = current
 
         return best_set,best_val
-        
+    
     def cholesky(self):
         l,d,p = ldl(self.A2)
         
@@ -502,11 +568,32 @@ class SPCA:
         pattern = where(abs(wt) > 0)[0]
         value = self.eigen_upperbound(pattern)
         return pattern,value
-
+    
+    def nesterov(self):
+        R = CustomDistribution(seed=self.args['seed'])
+        R_obj = R()  # get a frozen version of the distribution
+        best_x = None
+        bestVar = -Inf
+        for seed in range(self.args['numOfTrials']):
+            
+            self.args['seed'] = seed
+            
+            # initial point w.r.t. the mentioned seed
+            X0 = random(self.n, 1, density = self.args['density_of_SP'], 
+                        random_state = self.args['seed'], 
+                        data_rvs = R_obj.rvs)
+            
+            x, expVar = run_formulation(self.args, self.A, X0, self.n)
+            
+            if expVar > bestVar:
+                bestVar = expVar
+                best_x = x
+        return x.row,bestVar
+    
     def find_component(self,algo,k):
-        if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path"]:
+        if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","nesterov"]:
             print("bad algortihm choice, choose of one of the following")
-            print("GD, CCW, FCW, PCW, GCW, EM, Path")
+            print("GD, CCW, FCW, PCW, GCW, EM, Path,Path_mk2")
         elif algo == "PCW":
             algorithm = self.PCW1_iterative
         elif algo == "GCW":
@@ -521,7 +608,11 @@ class SPCA:
             algorithm = self.EM
         elif algo == "Path":
             algorithm = self.cholesky_mk2
-        
+        elif algo == "Path_mk2":
+            algorithm = self.cholesky_mk3
+        elif algo == "nesterov":
+            algorithm = self.nesterov
+        print(algo," başladı")
         all_loadings = zeros([self.s,k])
         components = zeros([self.m,k])
         loading_patterns = []
@@ -529,12 +620,15 @@ class SPCA:
         for i in range(k):
             pattern,value = algorithm()
             eigenvalue,eigenvector = self.eigen_pair(pattern)
+            print("eigen buldu")
             loading_patterns.append(pattern)
             eigen_values.append(value)
             all_loadings[:,i] = eigenvector[:,0]
             components[:,i] = self.A0[:,pattern].dot(eigenvector[:,0])
             self.deflation_sparse_vector(eigenvector,pattern)
+            print("deflation bitti")
         r = qr(components,mode = "r")
+        print("qr bitti")
         variance = diag(r) ** 2
         return loading_patterns,eigen_values,all_loadings,components,variance
     

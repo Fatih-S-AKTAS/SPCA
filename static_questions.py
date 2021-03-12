@@ -1,8 +1,8 @@
-# from numpy import *
-# from scipy.linalg import *
 from numpy import array,transpose,reshape,random,zeros,mean,ones,hstack,diag,shape
 from numpy.linalg import svd
+import gc
 
+sadge = gc.collect()
 
 OZONE = [
 [3 , 5710 , 4, 28, 40, 2693, -25, 87, 250],
@@ -497,25 +497,27 @@ for i in range(13):
     
 z8.close()
 
-def read_pgm(pgmf):
-    """Return a raster of integers from a PGM as a list of lists."""
-    assert pgmf.readline() == b'P5\n'
-    (width, height) = [int(i) for i in pgmf.readline().split()]
-    depth = int(pgmf.readline())
-    assert depth <= 255
+# def read_pgm(pgmf):
+#     """Return a raster of integers from a PGM as a list of lists."""
+#     assert pgmf.readline() == b'P5\n'
+#     (width, height) = [int(i) for i in pgmf.readline().split()]
+#     depth = int(pgmf.readline())
+#     assert depth <= 255
 
-    raster = []
-    for y in range(height):
-        row = []
-        for y in range(width):
-            row.append(ord(pgmf.read(1)))
-        raster.append(row)
-    return raster
+#     raster = []
+#     for y in range(height):
+#         row = []
+#         for y in range(width):
+#             row.append(ord(pgmf.read(1)))
+#         raster.append(row)
+#     return raster
 
-at_t_faces = zeros([400,10304])
-for person in range(40):
-    for image in range(10):
-        z9 = open("at_t_faces/s"+str(person + 1)+"/"+str(image+1)+".pgm","rb")
-        pgm_file = read_pgm(z9)
-        at_t_faces[person*10+image,:] = array(pgm_file).flatten()
+# sadge = gc.collect()
+# at_t_faces = zeros([400,10304])
+# for person in range(40):
+#     for image in range(10):
+#         z9 = open("at_t_faces/s"+str(person + 1)+"/"+str(image+1)+".pgm","rb")
+#         pgm_file = read_pgm(z9)
+#         at_t_faces[person*10+image,:] = array(pgm_file).flatten()
+# sadge = gc.collect()
 
