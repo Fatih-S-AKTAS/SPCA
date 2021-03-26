@@ -20,16 +20,6 @@ class SPCA:
         
         Please contact selim.aktas@ug.bilkent.edu.tr for any bugs, errors and recommendations.
         """
-        
-        # for i in range(len(A)):
-        #     for j in range(len(A[0])):
-        #         if isnan(A[i,j]) or abs(A[i,j]) == Inf:
-        #             print("Matrix A has NAN or Inf values, it will give linear algebra errors")
-        #             break
-        # for i in range(len(A)):
-        #     for j in range(len(A[0])):
-        #         if type(A[i,j]) != float64:
-        #             print("Matrix A should be registered as float64, otherwise computations will be wrong")
                     
         if type(A) != ndarray:
             print("A should be a numpy ndarray")
@@ -50,12 +40,6 @@ class SPCA:
             self.A2 = A.T.dot(A)
             self.diag = diag(self.A2)
             self.diag2 = self.diag ** 2
-            
-            # self.abs_A2 = abs(self.A2)
-            # self.squared_A2 = self.A2 ** 2
-            # self.abs_A2s = self.abs_A2.copy()
-            # fill_diagonal(self.abs_A2s,0)
- 
             
             self.tablelookup = {}
             """ lookup table to store and not solve for the same sparsity pattern multiple times"""
@@ -87,10 +71,6 @@ class SPCA:
         self.diag = diag(self.A2)
         self.diag2 = self.diag ** 2
         print("res bitti")
-        # self.abs_A2 = abs(self.A2)
-        # self.squared_A2 = self.A2 ** 2
-        # self.abs_A2s = self.abs_A2.copy()
-        # fill_diagonal(self.abs_A2s,0)
         
     def deflation_sparse_vector(self,svector,indices):        
         dual_vector = self.A[:,indices].dot(svector)
@@ -99,11 +79,6 @@ class SPCA:
         self.A2[indices,:] = self.A2[:,indices].T
         self.diag = diag(self.A2)
         self.diag2 = self.diag ** 2
-        
-        # self.abs_A2 = abs(self.A2)
-        # self.squared_A2 = self.A2 ** 2
-        # self.abs_A2s = self.abs_A2.copy()
-        # fill_diagonal(self.abs_A2s,0)
     
     def eigen_upperbound(self,ind):
         dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
@@ -244,14 +219,14 @@ class SPCA:
         return C,best_value
            
     def PCW1(self):
-        two_indices = argmax(self.abs_A2s,axis = None)
+        two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
         index1 = two_indices % self.n 
         index2 = two_indices // self.n
         C = [index1,index2]
         P = list(range(self.n))
         P.remove(index1)
         P.remove(index2)
-        best_value = self.eigen_upperbound(C)
+        best_value = [self.eigen_upperbound(C)]
         len_c = len(C)
         len_p = len(P)
         while len_c < self.s:
@@ -269,8 +244,28 @@ class SPCA:
             C = C + [P[best_index]]
             P.remove(P[best_index])
         # return self.PCW2(best_value[0],best_vector,P,C)
-        return C,best_value[0]
-            
+        return P,C,best_value[0]
+
+    def PCW1_efficient(self,P,C,best_value):
+        len_c = len(C)
+        len_p = len(P)
+        while len_c < self.s:
+            len_c += 1
+            len_p -= 1
+            best_index = 0
+            best_value = 0
+            for i in range(len_p):
+                C_temp = C + [P[i]]
+                value,vector = self.eigen_pair(C_temp)
+                if value > best_value:
+                    best_value = value
+                    best_vector = vector
+                    best_index = i
+            C = C + [P[best_index]]
+            P.remove(P[best_index])
+        # return self.PCW2(best_value[0],best_vector,P,C)
+        return P,C,best_value[0]
+     
     def PCW2(self,best_value,best_vector,P,C):
         len_p = len(P)
         len_c = len(C)
@@ -298,7 +293,7 @@ class SPCA:
         return C,best_value
 
     def PCW1_iterative(self):
-        two_indices = argmax(self.abs_A2s,axis = None)
+        two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
         index1 = two_indices % self.n 
         index2 = two_indices // self.n
         C = [index1,index2]
@@ -360,24 +355,8 @@ class SPCA:
         best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        # top_s_2 = argsorted[:self.s * self.search_multiplier]
         top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
         R = argsort(absolute(self.A2[top_s_2,:]),axis = 1)[:,self.n-self.s:].tolist()
-        for i in range(int(self.s * self.search_multiplier)):
-            val = self.eigen_upperbound(R[i])
-            if val > best_val:
-                best_val = val
-                best_set = R[i]
-         
-        return best_set,best_val
-
-    def column_norm_1_0(self):
-        best_set = []
-        best_val = 0
-        argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        # top_s_2 = argsorted[:self.s * self.search_multiplier]
-        top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
-        R = argsort(self.abs_A2[top_s_2,:],axis = 1)[:,self.n-self.s:].tolist()
         for i in range(int(self.s * self.search_multiplier)):
             val = self.eigen_upperbound(R[i])
             if val > best_val:
@@ -390,7 +369,6 @@ class SPCA:
         best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        # top_s_2 = argsorted[:self.s * self.search_multiplier]
         top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
         for i in top_s_2:
             possible = list(range(self.n))
@@ -398,27 +376,6 @@ class SPCA:
             current = [i]
             for j in range(self.s-1):
                 k = argmax(sum(absolute(self.A2[current,:][:,possible]),axis = 0) + self.diag[possible])
-                current.append(possible[k])
-                del possible[k]
-            val = self.eigen_upperbound(current)
-            if val > best_val:
-                best_val = val
-                best_set = current
-
-        return best_set,best_val
-
-    def correlation_cw_0(self):
-        best_set = []
-        best_val = 0
-        argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        # top_s_2 = argsorted[:self.s * self.search_multiplier]
-        top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
-        for i in top_s_2:
-            possible = list(range(self.n))
-            possible.pop(i)
-            current = [i]
-            for j in range(self.s-1):
-                k = argmax(sum(self.abs_A2[current,:][:,possible],axis = 0) + self.diag[possible])
                 current.append(possible[k])
                 del possible[k]
             val = self.eigen_upperbound(current)
@@ -440,27 +397,6 @@ class SPCA:
             current = [i]
             for j in range(self.s-1):
                 k = argmax(sum(self.A2[current,:][:,possible] ** 2,axis = 0) + self.diag2[possible])
-                current.append(possible[k])
-                del possible[k]
-            val = self.eigen_upperbound(current)
-            if val > best_val:
-                best_val = val
-                best_set = current
-
-        return best_set,best_val
-
-    def frobenius_cw_0(self):
-        best_set = []
-        best_val = 0
-        argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        # top_s_2 = argsorted[:self.s * self.search_multiplier]
-        top_s_2 = argsorted[:int(self.s * self.search_multiplier)]
-        for i in top_s_2:
-            possible = list(range(self.n))
-            possible.pop(i)
-            current = [i]
-            for j in range(self.s-1):
-                k = argmax(sum(self.squared_A2[current,:][:,possible],axis = 0) + self.diag2[possible])
                 current.append(possible[k])
                 del possible[k]
             val = self.eigen_upperbound(current)
@@ -593,7 +529,7 @@ class SPCA:
     def find_component(self,algo,k):
         if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","nesterov"]:
             print("bad algortihm choice, choose of one of the following")
-            print("GD, CCW, FCW, PCW, GCW, EM, Path,Path_mk2")
+            print("GD, CCW, FCW, PCW, GCW, EM, Path,Path_mk2, nesterov")
         elif algo == "PCW":
             algorithm = self.PCW1_iterative
         elif algo == "GCW":
@@ -644,26 +580,21 @@ class SPCA:
         """
         V = zeros(len(P))
         V2 = zeros(len(P))
-        R = argsort(self.abs_A2,axis = 1)[P,len(P)-self.s:len(P)-len(C)]
+        R = argsort(abs(self.A2),axis = 1)[P,len(P)-self.s:len(P)-len(C)]
         for i in range(len(P)):
             current_set = R[i,:]
-            V[i] = sum(self.abs_A2[i,current_set])
-            V2[i] = sum(self.abs_A2[current_set,:][:,current_set])
+            V[i] = sum(abs(self.A2)[i,current_set])
+            V2[i] = sum(abs(self.A2)[current_set,:][:,current_set])
 
         P = list(map(P.__getitem__,argsort(-1*V)))
         self.order = P
-            
-        # """ reordering indices in P according to column norms"""
         
         q = PriorityQueue()
-        """ prioirty queue for best first search  """
         f =  self.eigen_upperbound(P+C)
         lenp = len(P)
         q.put([-1*f,[P,C,len(C),lenp]])
         count_best = 0
-        """ initialization of the first problem """
         while q.qsize() > 0:
-            """ termination condition of the problem if we visit all the nodes then search is over """
             [eigen,[P,C,len_c,len_p]] = q.get()
             # print("eigen value",eigen,"len of chosen",len(C),"len of possible",len(P),"last chosen",C[-1:])
             if len_c < self.s:
@@ -672,16 +603,12 @@ class SPCA:
                     self.eigenvalues.append(eigenvalue[0])
                     self.eigenindices.append(C+P)
                     self.eigenvectors.append(eigenvector)
-                    """ registering the solution"""
                     break
                 else:
                     C1 = C + P[0:1]
                     P1 = P[1:]
                     
                     eigen2 = self.eigen_upperbound(C+P1)
-                    """ calculate lower bound of the second solution where C is the old chosen variable 
-                    list and p1 is the possible variable (indexes ) list where the chosen variable for 
-                    this node is erased """
                     len_c1 = len_c +1 
                     len_p = len_p -1
                     if len_c1 == self.s:
@@ -689,17 +616,12 @@ class SPCA:
                         q.put([-1*eigenvalue,[eigenvector,C1,len_c1,len_p]])
                         q.put([-1*eigen2,[P1,C,len_c,len_p]])
                     else:
-                        """ if the length of the chosen variable list is not equal to sparsity level, 
-                        then it is lower than sparsity level. We create two new nodes where first node
-                        is the node where chosen variable for this node is in the solution and the second 
-                        where the chosen variable for this node is erased from the problem """
                         q.put([ eigen ,[P1,C1,len_c1,len_p]])
                         q.put([-1*eigen2 ,[P1,C,len_c,len_p]])
             else:
                 self.eigenvalues.append(-1*eigen[0])
                 self.eigenindices.append(C)
                 self.eigenvectors.append(P)
-                """ registerin the solution"""
                 break
 
             
