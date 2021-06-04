@@ -48,11 +48,11 @@ omega = SPCA(A,s)
 
 #%%
 
-omega.search_multiplier = min(200/s,n/s)
+omega.search_multiplier = min(400/s,n/s)
 
 k = 1
     
-up_to = 15
+up_to = 50
 
 s_var = zeros([up_to,5])
 s_cpu = zeros([up_to,5])

@@ -6,4 +6,13 @@ sidework.py
 OMP.pdf
 at_t_faces
 codes
+papers
 econ_hw.py
+cgal_sdp_algorithms.py
+cgal_sdp_algorithms_4abuzer.py
+cgal_sdp_algorithms_4abuzer_memory.py
+cvxpy_formulations.py
+admm.py
+neverp.py
+experimental.py
+memory_leak.py

@@ -48,11 +48,11 @@ omega = SPCA(A,s)
 
 #%%
 
-omega.search_multiplier = min(400/s,n/s)
+omega.search_multiplier = min(800/s,n/s)
 
 k = 1
 
-up_to = 15
+up_to = 50
 
 s_var = zeros([up_to,5])
 s_cpu = zeros([up_to,5])
@@ -129,7 +129,7 @@ for iteration in range(1,up_to):
     sparsity = (iteration+1) * 5
     omega.s = sparsity
     print("!!! Current Sparsity level",sparsity,"!!!")
-    omega.search_multiplier = 400/sparsity
+    omega.search_multiplier = 800/sparsity
     
     t0 = time.process_time()
     gd_set,gd_val = omega.column_norm_1()

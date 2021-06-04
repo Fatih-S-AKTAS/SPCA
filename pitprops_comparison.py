@@ -21,21 +21,23 @@ from datagenerator import varimax_paper_data,review_paper_data,graph_data
 # A = review_paper_data(400,4000)
 # A = graph_data(2000,4)
 
-l,d,p = ldl(pitprops)
-A = l
+L = cholesky(pitprops)
+A = L
 
 # A = at_t_faces
 # A = load("at_t_faces_save.npy")
 
 m,n = shape(A)
     
-mA = reshape(mean(A,axis = 0),[1,n])
+# mA = reshape(mean(A,axis = 0),[1,n])
 
-A = A - ones([m,1]).dot(mA)
+# A = A - ones([m,1]).dot(mA)
 
-sA = std(A,axis = 0)
+# sA = std(A,axis = 0)
 # sA = std(A,axis = 0) * (1 + 0.01 * random.randn(n))
-A = A/sA
+# A = A/sA
+
+A2 = A.T.dot(A)
 
 #%%
 
@@ -67,7 +69,7 @@ for iteration in range(0,up_to-1):
     omega.s = sparsity
     omega.args["sparsity"] = sparsity
     print("!!! Current Sparsity level",sparsity,"!!!")
-    omega.search_multiplier = min(400/s,n/s)
+    omega.search_multiplier = min(400/sparsity,n/sparsity)
     
     t0 = time.process_time()
     gd_set,gd_val = omega.column_norm_1()

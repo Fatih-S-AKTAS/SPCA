@@ -2,11 +2,10 @@ import gc
 
 sadge = gc.collect()
 
-#%%
 from PCA_SPAR import SPCA
 from numpy import random,reshape,mean,ones,array,sign,arange,delete,log,tensordot,unique,fill_diagonal,shape,std,\
-    zeros,where,linspace,load,diag,argsort
-from scipy.linalg import eigvalsh,ldl,det,eigh,inv,pinv,cholesky,norm
+    zeros,where,linspace,load,diag,argsort,eye
+from scipy.linalg import eigvalsh,ldl,det,eigh,inv,pinv,cholesky,norm,qr
 from scipy.sparse.linalg import eigsh
 from scipy.special import huber
 import time
@@ -15,9 +14,8 @@ from matplotlib.pyplot import plot,grid,xlabel,ylabel,legend,title,figure
 from datagenerator import varimax_paper_data,review_paper_data,graph_data
 import cvxpy
 
-#%%
 
-A = random.normal(4,10,[200,2000])
+A = random.normal(4,10,[100,25])
 # A = varimax_paper_data(1000,400)
 # A = review_paper_data(400,4000)
 # A = graph_data(2000,4)
@@ -37,16 +35,13 @@ A = A/sA
 
 A2 = A.T.dot(A)
 
-#%%
 
 sadge1 = gc.collect()
 
-s = 20
+s = 8
 
 omega = SPCA(A,s)
 
-
-#%%
 
 omega.search_multiplier = min(200/s,n/s)
 
@@ -127,14 +122,53 @@ print("nesterov     ",sum(variance7))
 best_val = max([sum(variance1),sum(variance2),sum(variance3),sum(variance4),sum(variance5),sum(variance7)])
 
 #%%
+
+rho = 1
+# cvxpy 1 norm constraint + trace maximization (fantope bullshit)
+if n <= 25:
+    X = cvxpy.Variable(shape = (n,n),symmetric = True)
+    constraints = []
+    constraints += [X >> 0]
+    constraints += [eye(n) >> X]
+    constraints += [cvxpy.trace(X) == k * 1]
+    # constraints += [cvxpy.pnorm(X, 1) <= s]
+    # constraints += [cvxpy.sum(cvxpy.abs(X)) <= k * s]
+    
+    
+    obj = cvxpy.Maximize(cvxpy.trace(A2 @ X) - rho * cvxpy.pnorm(X, 1) )
+    
+    prob = cvxpy.Problem(obj,constraints)
+    prob.solve(solver = cvxpy.CVXOPT)
+    
+    Z0 = X.value
+    Z = Z0.copy()
+    Z[abs(Z)<1e-3] = 0
+    
+    lamda0,vector0 = eigsh(Z0,k = k,tol = 1e-4)
+    svector0 = vector0.copy()
+    svector0[abs(svector0) < 1e-3] = 0
+    
+    pattern0 = argsort(abs(vector0[:,:k]),axis = 0)[-s:]
+    svector1 = zeros([n,k])
+    for i in range(k):
+        svector1[pattern0[:,i],i] = vector0[pattern0[:,i],i]/norm(vector0[pattern0[:,i],i])
+    
+    q,r = qr(A.dot(svector1),mode = "economic")
+    var_cvx = diag(r) ** 2 
+    print("var",sum(var_cvx))
+    
+
+#%%
+
 # cvxpy 1 norm constraint + trace maximization
 if n <= 25:
     X = cvxpy.Variable(shape = (n,n),symmetric = True)
     constraints = []
     constraints += [X >> 0]
-    constraints += [cvxpy.trace(X) == 1]
+    constraints += [eye(n) >> X]
+    constraints += [cvxpy.trace(X) == k * 1]
     # constraints += [cvxpy.pnorm(X, 1) <= s]
-    constraints += [cvxpy.sum(cvxpy.abs(X)) <= s]
+    constraints += [cvxpy.sum(cvxpy.abs(X)) <= k * s + 2*s]
     
     
     obj = cvxpy.Maximize(cvxpy.trace(A2 @ X))
@@ -146,19 +180,28 @@ if n <= 25:
     Z = Z0.copy()
     Z[abs(Z)<1e-3] = 0
     
-    lamda0,vector0 = eigsh(Z0,k = 1,tol = 1e-4)
+    lamda0,vector0 = eigsh(Z0,k = k,tol = 1e-4)
     svector0 = vector0.copy()
     svector0[abs(svector0) < 1e-3] = 0
     
-    pattern0 = argsort(abs(vector0[:,0]))[-s:]
+    pattern0 = argsort(abs(vector0[:,:k]),axis = 0)[-s:]
+    svector1 = zeros([n,k])
+    for i in range(k):
+        svector1[pattern0[:,i],i] = vector0[pattern0[:,i],i]/norm(vector0[pattern0[:,i],i])
+    
+    q,r = qr(A.dot(svector1),mode = "economic")
+    var_cvx = diag(r) ** 2 
+        
 
 #%%
+
 # cvxpy trace constraint + 1 norm minimization
 if n <= 25:
     X2 = cvxpy.Variable(shape = (n,n),symmetric = True)
     constraints2 = []
     constraints2 += [X2 >> 0]
-    constraints2 += [cvxpy.trace(X2) == 1]
+    constraints2 += [eye(n) >> X2]
+    constraints2 += [cvxpy.trace(X2) == k]
     constraints2 += [cvxpy.trace(A2 @ X2) >= best_val]
     
     
@@ -173,13 +216,69 @@ if n <= 25:
     Y = Y0.copy()
     Y[abs(Y)<1e-3] = 0
     
-    lamda1,vector1 = eigsh(Y0,k = 1,tol = 1e-4)
+    lamda1,vector1 = eigsh(Y0,k = k,tol = 1e-4)
     svector1 = vector1.copy()
     svector1[abs(svector1) < 1e-3] = 0
     
     pattern1 = argsort(abs(vector1[:,0]))[-s:]
     sparsity1 = where(abs(svector1) > 0)[0]
+    
+    pattern0 = argsort(abs(vector1[:,:k]),axis = 0)[-s:]
+    svector1 = zeros([n,k])
+    for i in range(k):
+        svector1[pattern0[:,i],i] = vector1[pattern0[:,i],i]/norm(vector1[pattern0[:,i],i])
+    
+    q,r = qr(A.dot(svector1),mode = "economic")
+    var_cvx = diag(r) ** 2 
 
+#%%
+    
+k = 2
+# cvxpy trace constraint + 1 norm minimization
+if n <= 25:
+    X1 = cvxpy.Variable(shape = (n,n),symmetric = True)
+    X2 = cvxpy.Variable(shape = (n,n),symmetric = True)
+    constraints2 = []
+    constraints2 += [X1 >> 0]
+    constraints2 += [X2 >> 0]
+    constraints2 += [eye(n) >> X1 + X2]
+    constraints2 += [cvxpy.trace(X1) == 1]
+    constraints2 += [cvxpy.trace(X2) == 1]
+    constraints2 += [cvxpy.trace(A2 @ X2) + cvxpy.trace(A2 @ X1) >= best_val]
+    
+    
+    obj2 = cvxpy.Minimize(cvxpy.pnorm(X1,1) + cvxpy.pnorm(X2,1))
+    # obj2 = cvxpy.Minimize(cvxpy.sum(cvxpy.abs(X2)))
+    
+    prob2 = cvxpy.Problem(obj2,constraints2)
+    prob2.solve(solver = cvxpy.CVXOPT)
+    
+    pc1 = X1.value
+    pc2 = X2.value
+    
+    lamda1,vector1 = eigsh(pc1,k = k,tol = 1e-4)
+    lamda2,vector2 = eigsh(pc2,k = k,tol = 1e-4)
+    
+    svector1 = vector1.copy()
+    svector1[abs(svector1) < 1e-3] = 0
+    
+    pattern1 = argsort(abs(vector1[:,0]))[-s:]
+    sparsity1 = where(abs(svector1) > 0)[0]
+    
+    svector2 = vector2.copy()
+    svector2[abs(svector2) < 1e-3] = 0
+    
+    pattern2 = argsort(abs(vector2[:,0]))[-s:]
+    sparsity2 = where(abs(svector2) > 0)[0]
+    
+    pattern0 = argsort(abs(vector1[:,:k]),axis = 0)[-s:]
+    svector1 = zeros([n,k])
+    for i in range(k):
+        svector1[pattern0[:,i],i] = vector1[pattern0[:,i],i]/norm(vector1[pattern0[:,i],i])
+    
+    q,r = qr(A.dot(svector1),mode = "economic")
+    var_cvx = diag(r) ** 2 
+    
 #%%
 # cvxpy test, trace constraint + frobenius norm minimization
 if n <= 25:

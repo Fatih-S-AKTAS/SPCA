@@ -52,7 +52,7 @@ omega.search_multiplier = min(200/s,n/s)
 
 k = 1
 
-up_to = 15
+up_to = 50
 
 s_var = zeros([up_to,5])
 s_cpu = zeros([up_to,5])
@@ -64,7 +64,7 @@ for iteration in range(0,up_to):
     sparsity = (iteration+1) * 5
     omega.s = sparsity
     print("!!! Current Sparsity level",sparsity,"!!!")
-    omega.search_multiplier = 400/sparsity
+    omega.search_multiplier = 200/sparsity
     
     t0 = time.process_time()
     gd_set,gd_val = omega.column_norm_1()

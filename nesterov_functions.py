@@ -44,10 +44,16 @@ import pickle
 
 # ----------------------------------------
 # generate random sparse vector
-class CustomDistribution(rv_continuous):
+class CustomDistribution_old(rv_continuous):
     def _rvs(self, *args, **kwargs):
         return self._random_state.randn(*self._size)
 
+# ----------------------------------------
+# generate random sparse vector
+class CustomDistribution(rv_continuous):
+    def _rvs(self, *args, **kwargs):
+        return self._random_state.randn(kwargs["size"][0])
+    
     
 # ----------------------------------------
 # calculation of F(x,y)

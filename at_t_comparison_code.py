@@ -15,8 +15,8 @@ from datagenerator import varimax_paper_data,review_paper_data,graph_data
 
 #%%
 
-# A = load("at_t_faces_save.npy")
-A = random.randn(50,400)
+A = load("at_t_faces_save.npy")
+# A = random.randn(50,400)
 
 m,n = shape(A)
 
@@ -38,11 +38,12 @@ omega = SPCA(A,s)
 
 
 #%%
-# omega.search_multiplier = min(400/s,n/s)
 
-# k = 1
+omega.search_multiplier = min(500/s,n/s)
 
-up_to = 4
+k = 1
+
+up_to = 50
 
 s_var = zeros([up_to,7])
 s_cpu = zeros([up_to,7])
@@ -213,6 +214,7 @@ for iteration in range(1,up_to):
     s_var[iteration,6] = pcw_val
 
 #%%
+
 sparsity = arange(5,5 * (up_to + 1),5)
 
 varf = figure()
