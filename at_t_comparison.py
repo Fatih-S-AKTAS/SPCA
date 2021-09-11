@@ -10,7 +10,7 @@ from matplotlib.pyplot import plot,grid,xlabel,ylabel,legend,title,figure
 
 #%%
 
-A = random.normal(4,10,[100,2000])
+A = load("at_t_faces_save.npy")
 
 m,n = shape(A)
 
@@ -45,8 +45,8 @@ s_cpu = zeros([up_to,7])
 ss_var = zeros([up_to,7])
 ss_cpu = zeros([up_to,7])
 
-sss_var = zeros([up_to,7])
-sss_cpu = zeros([up_to,7])
+# sss_var = zeros([up_to,7])
+# sss_cpu = zeros([up_to,7])
 
 sparsity = 5
 omega.s = sparsity
@@ -140,73 +140,73 @@ pcwf,pcwfv = omega.EM_mk2(vec0,pcw_set)
 t27 = time.process_time()
 print("PCW done ")
 
-print("Imposing CW-Optimality")
-P_gd = list(range(n))
-for element in gd_set:
-    P_gd.remove(element)
-_,x_gd = omega.eigen_pair(gd_set)
+# print("Imposing CW-Optimality")
+# P_gd = list(range(n))
+# for element in gd_set:
+#     P_gd.remove(element)
+# _,x_gd = omega.eigen_pair(gd_set)
 
-t28 = time.process_time()
-gdf,gdfv2 = omega.PCW2_iterative(gd_val,x_gd,P_gd,gd_set)
-t29 = time.process_time()
-print("GD done ")
+# t28 = time.process_time()
+# gdf,gdfv2 = omega.PCW2_iterative(gd_val,x_gd,P_gd,gd_set)
+# t29 = time.process_time()
+# print("GD done ")
 
-P_ccw = list(range(n))
-for element in ccw_set:
-    P_ccw.remove(element)
-_,x_ccw = omega.eigen_pair(ccw_set)
+# P_ccw = list(range(n))
+# for element in ccw_set:
+#     P_ccw.remove(element)
+# _,x_ccw = omega.eigen_pair(ccw_set)
 
-t30 = time.process_time()
-ccwf,ccwfv2 = omega.PCW2_iterative(ccw_val,x_ccw,P_ccw,ccw_set)
-t31 = time.process_time()
-print("CCW done ")
+# t30 = time.process_time()
+# ccwf,ccwfv2 = omega.PCW2_iterative(ccw_val,x_ccw,P_ccw,ccw_set)
+# t31 = time.process_time()
+# print("CCW done ")
 
-P_fcw = list(range(n))
-for element in fcw_set:
-    P_fcw.remove(element)
-_,x_fcw = omega.eigen_pair(fcw_set)
+# P_fcw = list(range(n))
+# for element in fcw_set:
+#     P_fcw.remove(element)
+# _,x_fcw = omega.eigen_pair(fcw_set)
 
-t32 = time.process_time()
-fcwf,fcwfv2 = omega.PCW2_iterative(fcw_val,x_fcw,P_fcw,fcw_set)
-t33 = time.process_time()
-print("FCW done ")
+# t32 = time.process_time()
+# fcwf,fcwfv2 = omega.PCW2_iterative(fcw_val,x_fcw,P_fcw,fcw_set)
+# t33 = time.process_time()
+# print("FCW done ")
 
-P_em = list(range(n))
-for element in em_set:
-    P_em.remove(element)
-_,x_em = omega.eigen_pair(em_set)
+# P_em = list(range(n))
+# for element in em_set:
+#     P_em.remove(element)
+# _,x_em = omega.eigen_pair(em_set)
 
-t34 = time.process_time()
-emf,emfv2 = omega.PCW2_iterative(em_val,x_em,P_em,list(em_set))
-t35 = time.process_time()
-print("EM done ")
+# t34 = time.process_time()
+# emf,emfv2 = omega.PCW2_iterative(em_val,x_em,P_em,list(em_set))
+# t35 = time.process_time()
+# print("EM done ")
 
-P_path = list(range(n))
-for element in path_set:
-    P_path.remove(element)
-_,x_path = omega.eigen_pair(path_set)
+# P_path = list(range(n))
+# for element in path_set:
+#     P_path.remove(element)
+# _,x_path = omega.eigen_pair(path_set)
 
-t36 = time.process_time()
-pathf,pathfv2 = omega.PCW2_iterative(path_val,x_path,P_path,path_set)
-t37 = time.process_time()
-print("Path done ")
+# t36 = time.process_time()
+# pathf,pathfv2 = omega.PCW2_iterative(path_val,x_path,P_path,path_set)
+# t37 = time.process_time()
+# print("Path done ")
 
-P_gp = list(range(n))
-for element in gp_set:
-    P_gp.remove(element)
-_,x_gp = omega.eigen_pair(gp_set)
+# P_gp = list(range(n))
+# for element in gp_set:
+#     P_gp.remove(element)
+# _,x_gp = omega.eigen_pair(gp_set)
 
-t38 = time.process_time()
-gpf,gpfv2 = omega.PCW2_iterative(gp_val,x_gp,P_gp,list(gp_set))
-t39 = time.process_time()
-print("AM done ")
+# t38 = time.process_time()
+# gpf,gpfv2 = omega.PCW2_iterative(gp_val,x_gp,P_gp,list(gp_set))
+# t39 = time.process_time()
+# print("AM done ")
 
-_,x_pcw = omega.eigen_pair(pcw_set)
+# _,x_pcw = omega.eigen_pair(pcw_set)
 
-t40 = time.process_time()
-pcwf,pcwfv2 = omega.PCW2_iterative(pcw_val,x_pcw,P_pcw,pcw_set)
-t41 = time.process_time()
-print("PCW done ")
+# t40 = time.process_time()
+# pcwf,pcwfv2 = omega.PCW2_iterative(pcw_val,x_pcw,P_pcw,pcw_set)
+# t41 = time.process_time()
+# print("PCW done ")
     
 s_cpu[0,0] = t1-t0
 s_cpu[0,1] = t3-t2
@@ -224,13 +224,13 @@ ss_cpu[0,4] = t23-t22
 ss_cpu[0,5] = 0
 ss_cpu[0,6] = t27-t26
 
-sss_cpu[0,0] = t29-t28
-sss_cpu[0,1] = t31-t30
-sss_cpu[0,2] = t33-t32
-sss_cpu[0,3] = t35-t34
-sss_cpu[0,4] = t37-t36
-sss_cpu[0,5] = t39-t38
-sss_cpu[0,6] = t41-t40
+# sss_cpu[0,0] = t29-t28
+# sss_cpu[0,1] = t31-t30
+# sss_cpu[0,2] = t33-t32
+# sss_cpu[0,3] = t35-t34
+# sss_cpu[0,4] = t37-t36
+# sss_cpu[0,5] = t39-t38
+# sss_cpu[0,6] = t41-t40
 
 s_var[0,0] = gd_val
 s_var[0,1] = ccw_val
@@ -248,13 +248,13 @@ ss_var[0,4] = pathfv
 ss_var[0,5] = gp_val
 ss_var[0,6] = pcwfv
 
-sss_var[0,0] = gdfv2
-sss_var[0,1] = ccwfv2
-sss_var[0,2] = fcwfv2
-sss_var[0,3] = emfv2
-sss_var[0,4] = pathfv2
-sss_var[0,5] = gpfv2
-sss_var[0,6] = pcwfv2
+# sss_var[0,0] = gdfv2
+# sss_var[0,1] = ccwfv2
+# sss_var[0,2] = fcwfv2
+# sss_var[0,3] = emfv2
+# sss_var[0,4] = pathfv2
+# sss_var[0,5] = gpfv2
+# sss_var[0,6] = pcwfv2
     
 for iteration in range(1,up_to):
     gc.collect()
@@ -351,73 +351,73 @@ for iteration in range(1,up_to):
     t27 = time.process_time()
     print("PCW done ")
 
-    print("Imposing CW-Optimality")
-    P_gd = list(range(n))
-    for element in gd_set:
-        P_gd.remove(element)
-    _,x_gd = omega.eigen_pair(gd_set)
+    # print("Imposing CW-Optimality")
+    # P_gd = list(range(n))
+    # for element in gd_set:
+    #     P_gd.remove(element)
+    # _,x_gd = omega.eigen_pair(gd_set)
     
-    t28 = time.process_time()
-    gdf,gdfv2 = omega.PCW2_iterative(gd_val,x_gd,P_gd,gd_set)
-    t29 = time.process_time()
-    print("GD done ")
+    # t28 = time.process_time()
+    # gdf,gdfv2 = omega.PCW2_iterative(gd_val,x_gd,P_gd,gd_set)
+    # t29 = time.process_time()
+    # print("GD done ")
     
-    P_ccw = list(range(n))
-    for element in ccw_set:
-        P_ccw.remove(element)
-    _,x_ccw = omega.eigen_pair(ccw_set)
+    # P_ccw = list(range(n))
+    # for element in ccw_set:
+    #     P_ccw.remove(element)
+    # _,x_ccw = omega.eigen_pair(ccw_set)
     
-    t30 = time.process_time()
-    ccwf,ccwfv2 = omega.PCW2_iterative(ccw_val,x_ccw,P_ccw,ccw_set)
-    t31 = time.process_time()
-    print("CCW done ")
+    # t30 = time.process_time()
+    # ccwf,ccwfv2 = omega.PCW2_iterative(ccw_val,x_ccw,P_ccw,ccw_set)
+    # t31 = time.process_time()
+    # print("CCW done ")
     
-    P_fcw = list(range(n))
-    for element in fcw_set:
-        P_fcw.remove(element)
-    _,x_fcw = omega.eigen_pair(fcw_set)
+    # P_fcw = list(range(n))
+    # for element in fcw_set:
+    #     P_fcw.remove(element)
+    # _,x_fcw = omega.eigen_pair(fcw_set)
     
-    t32 = time.process_time()
-    fcwf,fcwfv2 = omega.PCW2_iterative(fcw_val,x_fcw,P_fcw,fcw_set)
-    t33 = time.process_time()
-    print("FCW done ")
+    # t32 = time.process_time()
+    # fcwf,fcwfv2 = omega.PCW2_iterative(fcw_val,x_fcw,P_fcw,fcw_set)
+    # t33 = time.process_time()
+    # print("FCW done ")
     
-    P_em = list(range(n))
-    for element in em_set:
-        P_em.remove(element)
-    _,x_em = omega.eigen_pair(em_set)
+    # P_em = list(range(n))
+    # for element in em_set:
+    #     P_em.remove(element)
+    # _,x_em = omega.eigen_pair(em_set)
     
-    t34 = time.process_time()
-    emf,emfv2 = omega.PCW2_iterative(em_val,x_em,P_em,list(em_set))
-    t35 = time.process_time()
-    print("EM done ")
+    # t34 = time.process_time()
+    # emf,emfv2 = omega.PCW2_iterative(em_val,x_em,P_em,list(em_set))
+    # t35 = time.process_time()
+    # print("EM done ")
     
-    P_path = list(range(n))
-    for element in path_set:
-        P_path.remove(element)
-    _,x_path = omega.eigen_pair(path_set)
+    # P_path = list(range(n))
+    # for element in path_set:
+    #     P_path.remove(element)
+    # _,x_path = omega.eigen_pair(path_set)
     
-    t36 = time.process_time()
-    pathf,pathfv2 = omega.PCW2_iterative(path_val,x_path,P_path,path_set)
-    t37 = time.process_time()
-    print("Path done ")
+    # t36 = time.process_time()
+    # pathf,pathfv2 = omega.PCW2_iterative(path_val,x_path,P_path,path_set)
+    # t37 = time.process_time()
+    # print("Path done ")
     
-    P_gp = list(range(n))
-    for element in gp_set:
-        P_gp.remove(element)
-    _,x_gp = omega.eigen_pair(gp_set)
+    # P_gp = list(range(n))
+    # for element in gp_set:
+    #     P_gp.remove(element)
+    # _,x_gp = omega.eigen_pair(gp_set)
     
-    t38 = time.process_time()
-    gpf,gpfv2 = omega.PCW2_iterative(gp_val,x_gp,P_gp,list(gp_set))
-    t39 = time.process_time()
-    print("AM done ")
+    # t38 = time.process_time()
+    # gpf,gpfv2 = omega.PCW2_iterative(gp_val,x_gp,P_gp,list(gp_set))
+    # t39 = time.process_time()
+    # print("AM done ")
     
-    _,x_pcw = omega.eigen_pair(pcw_set)
+    # _,x_pcw = omega.eigen_pair(pcw_set)
     
-    t40 = time.process_time()
-    pcwf,pcwfv2 = omega.PCW2_iterative(pcw_val,x_pcw,P_pcw,pcw_set)
-    t41 = time.process_time()
-    print("PCW done ")
+    # t40 = time.process_time()
+    # pcwf,pcwfv2 = omega.PCW2_iterative(pcw_val,x_pcw,P_pcw,pcw_set)
+    # t41 = time.process_time()
+    # print("PCW done ")
     
     s_cpu[iteration,0] = t1-t0
     s_cpu[iteration,1] = t3-t2
@@ -435,13 +435,13 @@ for iteration in range(1,up_to):
     ss_cpu[iteration,5] = 0
     ss_cpu[iteration,6] = t27-t26
     
-    sss_cpu[iteration,0] = t29-t28
-    sss_cpu[iteration,1] = t31-t30
-    sss_cpu[iteration,2] = t33-t32
-    sss_cpu[iteration,3] = t35-t34
-    sss_cpu[iteration,4] = t37-t36
-    sss_cpu[iteration,5] = t39-t38
-    sss_cpu[iteration,6] = t41-t40
+    # sss_cpu[iteration,0] = t29-t28
+    # sss_cpu[iteration,1] = t31-t30
+    # sss_cpu[iteration,2] = t33-t32
+    # sss_cpu[iteration,3] = t35-t34
+    # sss_cpu[iteration,4] = t37-t36
+    # sss_cpu[iteration,5] = t39-t38
+    # sss_cpu[iteration,6] = t41-t40
     
     s_var[iteration,0] = gd_val
     s_var[iteration,1] = ccw_val
@@ -459,16 +459,16 @@ for iteration in range(1,up_to):
     ss_var[iteration,5] = gp_val
     ss_var[iteration,6] = pcwfv
 
-    sss_var[iteration,0] = gdfv2
-    sss_var[iteration,1] = ccwfv2
-    sss_var[iteration,2] = fcwfv2
-    sss_var[iteration,3] = emfv2
-    sss_var[iteration,4] = pathfv2
-    sss_var[iteration,5] = gpfv2
-    sss_var[iteration,6] = pcwfv2
+    # sss_var[iteration,0] = gdfv2
+    # sss_var[iteration,1] = ccwfv2
+    # sss_var[iteration,2] = fcwfv2
+    # sss_var[iteration,3] = emfv2
+    # sss_var[iteration,4] = pathfv2
+    # sss_var[iteration,5] = gpfv2
+    # sss_var[iteration,6] = pcwfv2
     
 ts_cpu = s_cpu+ss_cpu
-tss_cpu = s_cpu+sss_cpu
+# tss_cpu = s_cpu+sss_cpu
 
 #%%
 
@@ -531,40 +531,40 @@ ylabel("CPU time (s)")
 title("Total CPU time Against Sparsity Level Imposing Stationarity")
 
 
-varf3 = figure()
-grid(True)
-plot(sparsity,sss_var[:,0],color = "blue")
-plot(sparsity,sss_var[:,1],color = "red")
-plot(sparsity,sss_var[:,2],color = "green")
-plot(sparsity,sss_var[:,3],color = "olive")
-plot(sparsity,sss_var[:,4],color = "orange")
-plot(sparsity,sss_var[:,5],color = "purple")
-plot(sparsity,sss_var[:,6],color = "yellow")
-legend(["GD","CCW","FCW","EM","Path","GPower","Greedy"])
-xlabel("Sparsity")
-ylabel("Variance")
-title("Variance Against Sparsity Level Imposing CW-Optimality")
+# varf3 = figure()
+# grid(True)
+# plot(sparsity,sss_var[:,0],color = "blue")
+# plot(sparsity,sss_var[:,1],color = "red")
+# plot(sparsity,sss_var[:,2],color = "green")
+# plot(sparsity,sss_var[:,3],color = "olive")
+# plot(sparsity,sss_var[:,4],color = "orange")
+# plot(sparsity,sss_var[:,5],color = "purple")
+# plot(sparsity,sss_var[:,6],color = "yellow")
+# legend(["GD","CCW","FCW","EM","Path","GPower","Greedy"])
+# xlabel("Sparsity")
+# ylabel("Variance")
+# title("Variance Against Sparsity Level Imposing CW-Optimality")
 
-cpuf3 = figure()
-grid(True)
-plot(sparsity,tss_cpu[:,0],color = "blue")
-plot(sparsity,tss_cpu[:,1],color = "red")
-plot(sparsity,tss_cpu[:,2],color = "green")
-plot(sparsity,tss_cpu[:,3],color = "olive")
-plot(sparsity,tss_cpu[:,4],color = "orange")
-plot(sparsity,tss_cpu[:,5],color = "purple")
-plot(sparsity,tss_cpu[:,6],color = "yellow")
-legend(["GD","CCW","FCW","EM","Path","GPower","Greedy"])
-xlabel("Sparsity")
-ylabel("CPU time (s)")
-title("Total CPU time Against Sparsity Level Imposing CW-Optimality")
+# cpuf3 = figure()
+# grid(True)
+# plot(sparsity,tss_cpu[:,0],color = "blue")
+# plot(sparsity,tss_cpu[:,1],color = "red")
+# plot(sparsity,tss_cpu[:,2],color = "green")
+# plot(sparsity,tss_cpu[:,3],color = "olive")
+# plot(sparsity,tss_cpu[:,4],color = "orange")
+# plot(sparsity,tss_cpu[:,5],color = "purple")
+# plot(sparsity,tss_cpu[:,6],color = "yellow")
+# legend(["GD","CCW","FCW","EM","Path","GPower","Greedy"])
+# xlabel("Sparsity")
+# ylabel("CPU time (s)")
+# title("Total CPU time Against Sparsity Level Imposing CW-Optimality")
 
-varf.savefig("CW_comparison_variance.eps",format = "eps")
-cpuf.savefig("CW_comparison_cpu.eps",format = "eps")
+varf.savefig("at_t_comparison_variance.eps",format = "eps")
+cpuf.savefig("at_t_comparison_cpu.eps",format = "eps")
 
-varf2.savefig("CW_comparison_variance2.eps",format = "eps")
-cpuf2.savefig("CW_comparison_cpu2.eps",format = "eps")
+varf2.savefig("at_t_comparison_variance2.eps",format = "eps")
+cpuf2.savefig("at_t_comparison_cpu2.eps",format = "eps")
 
-varf3.savefig("CW_comparison_variance3.eps",format = "eps")
-cpuf3.savefig("CW_comparison_cpu3.eps",format = "eps")
+# varf3.savefig("CW10_comparison_variance3.eps",format = "eps")
+# cpuf3.savefig("CW10_comparison_cpu3.eps",format = "eps")
 

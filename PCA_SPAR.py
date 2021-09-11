@@ -2,7 +2,8 @@ from numpy import Inf,ndarray,shape,argmax,zeros,argsort,where,diag,sum,\
     arange,delete,absolute,asarray_chkfinite
 from scipy.sparse.linalg import eigsh
 from scipy.sparse import random as scipy_random
-from numpy.linalg import qr,norm,eigvalsh
+from scipy.linalg import qr
+from numpy.linalg import norm,eigvalsh
 from queue import PriorityQueue
 from nesterov_functions import CustomDistribution
 from nesterov_wrapper import run_formulation
@@ -43,10 +44,9 @@ class SPCA:
             self.eigenvectors = []
             
             self.search_multiplier = 10
-            self.AM_trial = 10
             self.args = {'formulation': 'L2var_L0cons', 'dataname': 'ATandT_Database_of_Faces', 'dataDir': './data/',\
     'resultsDir': './results/', 'seed': 1, 'density_of_SP': 1, 'sparsity': self.s, 'tol': 1e-06, \
-        'maxIter': 200, 'numOfTrials': self.AM_trial, 'stabilityIter': 30, 'incDelta': 0.001}
+        'maxIter': 200, 'numOfTrials': 10, 'stabilityIter': 30, 'incDelta': 0.001}
 
     def show(self,ind):
         print(self.A2[:,ind][ind,:])
@@ -79,9 +79,6 @@ class SPCA:
         else:
             dominant_eigen_value = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
             return dominant_eigen_value[0]
-        
-        dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
-        return dominant_eigen_value[0]
     
     def eigen_pair(self,ind):
         if len(ind) <= self.m:
@@ -89,17 +86,19 @@ class SPCA:
             return eigenvalue,eigenvector
         else:
             eigenvalue,dualeigenvector = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
-            eigenvector = dualeigenvector.T.dot(self.A)
+            eigenvector = dualeigenvector.T.dot(self.A[:,ind])
             eigenvector = eigenvector/norm(eigenvector)
-            return eigenvalue,eigenvector
+
+            return eigenvalue,eigenvector.T
 
     def eigen_pair0(self,ind):
         if len(ind) <= self.m:
             eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
         else:
             eigenvalue,dualeigenvector = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
-            eigenvector = dualeigenvector.T.dot(self.A)
+            eigenvector = dualeigenvector.T.dot(self.A[:,ind])
             eigenvector = eigenvector/norm(eigenvector)
+            eigenvector = eigenvector.T
         eigenvector_padded = zeros([self.n,1])
         eigenvector_padded[ind] = eigenvector
         return eigenvalue,eigenvector,eigenvector_padded
@@ -218,7 +217,7 @@ class SPCA:
         P = list(range(self.n))
         P.remove(index1)
         P.remove(index2)
-        best_value = [self.eigen_upperbound(C)]
+        best_value = self.eigen_upperbound(C)
         len_c = len(C)
         len_p = len(P)
         while len_c < self.s:
@@ -234,7 +233,37 @@ class SPCA:
                     best_index = i
             C = C + [P[best_index]]
             P.remove(P[best_index])
+            
         return P,C,best_value
+
+    def greedy_forward_stationary(self):
+        two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
+        index1 = two_indices % self.n 
+        index2 = two_indices // self.n
+        C = [index1,index2]
+        P = list(range(self.n))
+        P.remove(index1)
+        P.remove(index2)
+        best_value = self.eigen_upperbound(C)
+        len_c = len(C)
+        len_p = len(P)
+        while len_c < self.s:
+            len_c += 1
+            len_p -= 1
+            best_index = 0
+            best_value = 0
+            for i in range(len_p):
+                C_temp = C + [P[i]]
+                value = self.eigen_upperbound(C_temp)
+                if value > best_value:
+                    best_value = value
+                    best_index = i
+            C = C + [P[best_index]]
+            P.remove(P[best_index])
+        
+        val,vec,vec0 = self.eigen_pair0(C)
+        best_set,best_val = self.EM_mk2(vec0,C)
+        return best_set,best_val
 
     def greedy_forward_efficient(self,P,C,best_value):
         len_c = len(C)
@@ -377,7 +406,23 @@ class SPCA:
             if val > best_val:
                 best_val = val
                 best_set = R[i]
-         
+                
+        val,vec,vec0 = self.eigen_pair0(best_set)
+        best_set,best_val = self.EM_mk2(vec0,best_set)
+        return best_set,best_val
+
+    def column_norm_1_old(self):
+        best_set = []
+        best_val = 0
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        top_s = argsorted[:int(self.s * self.search_multiplier)]
+        R = argsort(absolute(self.A2[top_s,:]),axis = 1)[:,self.n-self.s:].tolist()
+        for i in range(int(self.s * self.search_multiplier)):
+            val = self.eigen_upperbound(R[i])
+            if val > best_val:
+                best_val = val
+                best_set = R[i]
+                
         return best_set,best_val
     
     def correlation_cw(self):
@@ -397,7 +442,29 @@ class SPCA:
             if val > best_val:
                 best_val = val
                 best_set = current
-
+                
+        val,vec,vec0 = self.eigen_pair0(best_set)
+        best_set,best_val = self.EM_mk2(vec0,best_set)
+        return best_set,best_val
+    
+    def correlation_cw_old(self):
+        best_set = []
+        best_val = 0
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        top_s = argsorted[:int(self.s * self.search_multiplier)]
+        for i in top_s:
+            possible = list(range(self.n))
+            possible.pop(i)
+            current = [i]
+            for j in range(self.s-1):
+                k = argmax(sum(absolute(self.A2[current,:][:,possible]),axis = 0) + self.diag[possible])
+                current.append(possible[k])
+                del possible[k]
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+                best_set = current
+                
         return best_set,best_val
     
     def frobenius_cw(self):
@@ -417,10 +484,32 @@ class SPCA:
             if val > best_val:
                 best_val = val
                 best_set = current
-
+                
+        val,vec,vec0 = self.eigen_pair0(best_set)
+        best_set,best_val = self.EM_mk2(vec0,best_set)
         return best_set,best_val
 
-    def cholesky_mk2(self):
+    def frobenius_cw_old(self):
+        best_set = []
+        best_val = 0
+        argsorted = argsort(-1 * norm(self.A2,axis = 1))
+        top_s = argsorted[:int(self.s * self.search_multiplier)]
+        for i in top_s:
+            possible = list(range(self.n))
+            possible.pop(i)
+            current = [i]
+            for j in range(self.s-1):
+                k = argmax(sum(self.A2[current,:][:,possible] ** 2,axis = 0) + self.diag2[possible])
+                current.append(possible[k])
+                del possible[k]
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+                best_set = current
+                
+        return best_set,best_val
+    
+    def cholesky_mk2_old(self):
         
         P = arange(self.n)
         i = argmax(norm(self.A2,axis = 1))
@@ -445,6 +534,33 @@ class SPCA:
         
         return current,self.eigen_upperbound(current)
 
+    def cholesky_mk2(self):
+        
+        P = arange(self.n)
+        i = argmax(norm(self.A2,axis = 1))
+        
+        current = [i]
+        P = delete(P,i)
+        
+        x = self.A[:,[i]]/norm(self.A[:,i])
+        vals = x.T.dot(self.A[:,P]) ** 2
+        new_index = argmax(vals)
+        current.append(P[new_index])
+        P = delete(P,new_index)
+        
+        for i in range(self.s - 2):
+            value,vector = self.eigen_pair(current)
+            x = self.A[:,current].dot(vector)
+            x = x/norm(x)
+            vals = x.T.dot(self.A[:,P]) ** 2
+            new_index = argmax(vals)
+            current.append(P[new_index])
+            P = delete(P,new_index)
+        
+        val,vec,vec0 = self.eigen_pair0(current)
+        best_set,best_val = self.EM_mk2(vec0,current)
+        return best_set,best_val
+    
     def cholesky_mk3(self):
         best_val = 0
         best_set = []
@@ -477,11 +593,12 @@ class SPCA:
         
     def EM(self):
         v,wt = self.eigen_pair(list(range(self.n)))
+        order = arange(self.n)
         t = 0
         diff = 1
-        while diff >= 1e-4:
+        while diff >= 1e-6:
             t += 1
-            y = self.A.dot(wt)
+            y = self.A[:,order].dot(wt[order])
             w = y.T.dot(self.A)/(norm(y) ** 2)
             order = argsort(-1 * abs(w[0]))[:self.s]
             old_wt = wt
@@ -490,6 +607,42 @@ class SPCA:
             wt = wt/norm(wt)
             diff = norm(wt-old_wt)
         pattern = where(abs(wt) > 0)[0]
+        value = self.eigen_upperbound(pattern)
+        return pattern,value
+    
+    def EM_mk2(self,x,support):
+        t = 0
+        diff = 1
+        while diff >= 1e-6:
+            t += 1
+            y = self.A[:,support].dot(x[support])
+            w = y.T.dot(self.A)
+            w = w/norm(w)
+            support = argsort(-1 * abs(w[0]))[:self.s]
+            old_x = x.copy()
+            x = zeros([self.n,1])
+            x[support,0] = w[0][support]
+            x = x/norm(x)
+            diff = norm(x-old_x)
+        pattern = list(where(abs(x) > 0)[0])
+        value = self.eigen_upperbound(pattern)
+        return pattern,value
+
+    def EM_mk3(self,x):
+        t = 0
+        diff = 1
+        while diff >= 1e-6:
+            t += 1
+            y = self.A.dot(x)
+            w = y.T.dot(self.A)
+            w = w/norm(w)
+            support = argsort(-1 * abs(w[0]))[:self.s]
+            old_x = x.copy()
+            x = zeros([self.n,1])
+            x[support,0] = w[0][support]
+            x = x/norm(x)
+            diff = norm(x-old_x)
+        pattern = where(abs(x) > 0)[0]
         value = self.eigen_upperbound(pattern)
         return pattern,value
     
@@ -515,9 +668,9 @@ class SPCA:
         return best_x.row,bestVar
     
     def find_component(self,algo,k):
-        if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","nesterov"]:
+        if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","GPower","Greedy"]:
             print("bad algortihm choice, choose of one of the following")
-            print("GD, CCW, FCW, PCW, GCW, EM, Path,Path_mk2, nesterov")
+            print("GD, CCW, FCW, PCW, GCW, Greedy, EM, Path,Path_mk2, GPower")
         elif algo == "PCW":
             algorithm = self.PCW1_iterative
         elif algo == "GCW":
@@ -534,8 +687,10 @@ class SPCA:
             algorithm = self.cholesky_mk2
         elif algo == "Path_mk2":
             algorithm = self.cholesky_mk3
-        elif algo == "nesterov":
+        elif algo == "GPower":
             algorithm = self.nesterov
+        elif algo == "Greedy":
+            algorithm = self.greedy_forward_stationary
         all_loadings = zeros([self.s,k])
         components = zeros([self.m,k])
         loading_patterns = []
@@ -548,8 +703,9 @@ class SPCA:
             all_loadings[:,i] = eigenvector[:,0]
             components[:,i] = self.A0[:,pattern].dot(eigenvector[:,0])
             self.deflation_sparse_vector(eigenvector,pattern)
-        r = qr(components,mode = "r")
-        variance = diag(r) ** 2
+        r = qr(components,mode = "r",pivoting = True)
+        variance = diag(r[0]) ** 2
+        self.restart()
         return loading_patterns,eigen_values,all_loadings,components,variance
     
     def solve_spca(self,P ,C = []):

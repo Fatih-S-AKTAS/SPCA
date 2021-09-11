@@ -90,17 +90,18 @@ class SPCA_LM:
             return eigenvalue,eigenvector
         else:
             eigenvalue,dualeigenvector = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
-            eigenvector = dualeigenvector.T.dot(self.A)
+            eigenvector = dualeigenvector.T.dot(self.A[:,ind])
             eigenvector = eigenvector/norm(eigenvector)
-            return eigenvalue,eigenvector
+            return eigenvalue,eigenvector[:,ind].T
     
     def eigen_pair0(self,ind):
         if len(ind) <= self.m:
             eigenvalue,eigenvector = eigsh(self.A[:,ind].T.dot(self.A[:,ind]),k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
         else:
             eigenvalue,dualeigenvector = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
-            eigenvector = dualeigenvector.T.dot(self.A)
+            eigenvector = dualeigenvector.T.dot(self.A[:,ind])
             eigenvector = eigenvector/norm(eigenvector)
+            eigenvector = eigenvector.T
         eigenvector_padded = zeros([self.n,1])
         eigenvector_padded[ind] = eigenvector
         return eigenvalue,eigenvector,eigenvector_padded
@@ -261,6 +262,43 @@ class SPCA_LM:
             P.remove(P[best_index])
         return P,C,best_value
 
+    def greedy_forward_stationary(self):
+        index1 = 0
+        index2 = 0
+        max_cor = 0
+        for i in range(self.n):
+            col = abs(self.A[:,i].T.dot(self.A))
+            col[i] = 0
+            j = argmax(col)
+            if col[j] > max_cor:
+                max_cor = col[j]
+                index1 = i
+                index2 = j
+        C = [index1,index2]
+        P = list(range(self.n))
+        P.remove(index1)
+        P.remove(index2)
+        best_value = [self.eigen_upperbound(C)]
+        len_c = len(C)
+        len_p = len(P)
+        while len_c < self.s:
+            len_c += 1
+            len_p -= 1
+            best_index = 0
+            best_value = 0
+            for i in range(len_p):
+                C_temp = C + [P[i]]
+                value = self.eigen_upperbound(C_temp)
+                if value > best_value:
+                    best_value = value
+                    best_index = i
+            C = C + [P[best_index]]
+            P.remove(P[best_index])
+        
+        val,vec,vec0 = self.eigen_pair0(C)
+        best_set,best_val = self.EM_mk2(vec0,C)
+        return best_set,best_val
+    
     def greedy_forward_efficient(self,P,C,best_value):
         len_c = len(C)
         len_p = len(P)
@@ -427,7 +465,32 @@ class SPCA_LM:
             if val > best_val:
                 best_val = val
                 best_set = R[i]
-         
+        
+        val,vec,vec0 = self.eigen_pair0(best_set)
+        best_set,best_val = self.EM_mk2(vec0,best_set)
+        return best_set,best_val
+
+    def column_norm_1_old(self):
+        top_s = zeros(int(self.s * self.search_multiplier))
+        R = zeros((int(self.s * self.search_multiplier),self.s),dtype = int)
+        for i in range(self.n):
+            col = abs(self.A[:,i].T.dot(self.A))
+            disk_set = argsort(col)[-self.s:]
+            disk_radius = col.sum()
+            if disk_radius > top_s[0]:
+                insert_location = bisect_left(top_s,disk_radius)
+                top_s[:insert_location-1] = top_s[1:insert_location]
+                top_s[insert_location-1] = disk_radius
+                R[:insert_location-1,:] = R[1:insert_location,:]
+                R[insert_location-1,:] = disk_set
+        best_set = []
+        best_val = 0
+        for i in range(int(self.s * self.search_multiplier)):
+            val = self.eigen_upperbound(R[i])
+            if val > best_val:
+                best_val = val
+                best_set = R[i]
+        
         return best_set,best_val
     
     def correlation_cw(self):
@@ -456,7 +519,38 @@ class SPCA_LM:
             if val > best_val:
                 best_val = val
                 best_set = current
+                
+        val,vec,vec0 = self.eigen_pair0(best_set)
+        best_set,best_val = self.EM_mk2(vec0,best_set)
+        return best_set,best_val
 
+    def correlation_cw_old(self):
+        top_s = zeros(int(self.s * self.search_multiplier),dtype = int)
+        top_s_disk_radius = zeros(int(self.s * self.search_multiplier))
+        for i in range(self.n):
+            disk_radius = norm(self.A[:,i].T.dot(self.A),ord = 1)
+            if disk_radius > top_s_disk_radius[0]:
+                insert_location = bisect_left(top_s_disk_radius,disk_radius)
+                top_s_disk_radius[:insert_location-1] = top_s_disk_radius[1:insert_location]
+                top_s_disk_radius[insert_location-1] = disk_radius
+                
+                top_s[:insert_location-1] = top_s[1:insert_location]
+                top_s[insert_location-1] = i
+        best_set = []
+        best_val = 0
+        for i in top_s:
+            possible = list(range(self.n))
+            possible.pop(i)
+            current = [i]
+            for j in range(self.s-1):
+                k = argmax(sum(absolute(self.A[:,current].T.dot(self.A[:,possible])),axis = 0) + self.diag[possible])
+                current.append(possible[k])
+                del possible[k]
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+                best_set = current
+                
         return best_set,best_val
     
     def frobenius_cw(self):
@@ -464,7 +558,7 @@ class SPCA_LM:
         top_s_disk_radius = zeros(int(self.s * self.search_multiplier))
         for i in range(self.n):
             disk_radius = norm(self.A[:,i].T.dot(self.A),ord = 1)
-            if disk_radius > top_s[0]:
+            if disk_radius > top_s_disk_radius[0]:
                 insert_location = bisect_left(top_s_disk_radius,disk_radius)
                 top_s_disk_radius[:insert_location-1] = top_s_disk_radius[1:insert_location]
                 top_s_disk_radius[insert_location-1] = disk_radius
@@ -485,10 +579,41 @@ class SPCA_LM:
             if val > best_val:
                 best_val = val
                 best_set = current
-
+                
+        val,vec,vec0 = self.eigen_pair0(best_set)
+        best_set,best_val = self.EM_mk2(vec0,best_set)
         return best_set,best_val
 
-    def cholesky_mk2(self):
+    def frobenius_cw_old(self):
+        top_s = zeros(int(self.s * self.search_multiplier),dtype = int)
+        top_s_disk_radius = zeros(int(self.s * self.search_multiplier))
+        for i in range(self.n):
+            disk_radius = norm(self.A[:,i].T.dot(self.A),ord = 1)
+            if disk_radius > top_s_disk_radius[0]:
+                insert_location = bisect_left(top_s_disk_radius,disk_radius)
+                top_s_disk_radius[:insert_location-1] = top_s_disk_radius[1:insert_location]
+                top_s_disk_radius[insert_location-1] = disk_radius
+                
+                top_s[:insert_location-1] = top_s[1:insert_location]
+                top_s[insert_location-1] = i
+        best_set = []
+        best_val = 0
+        for i in top_s:
+            possible = list(range(self.n))
+            possible.pop(i)
+            current = [i]
+            for j in range(self.s-1):
+                k = argmax(sum(self.A[:,current].T.dot(self.A[:,possible]) ** 2,axis = 0) + self.diag2[possible])
+                current.append(possible[k])
+                del possible[k]
+            val = self.eigen_upperbound(current)
+            if val > best_val:
+                best_val = val
+                best_set = current
+                
+        return best_set,best_val
+    
+    def cholesky_mk2_old(self):
         i = 0
         max_col_norm = 0
         for j in range(self.n):
@@ -519,6 +644,39 @@ class SPCA_LM:
         
         return current,self.eigen_upperbound(current)
 
+    def cholesky_mk2(self):
+        i = 0
+        max_col_norm = 0
+        for j in range(self.n):
+            col_norm = norm(self.A[:,j].T.dot(self.A),ord = 2)
+            if col_norm > max_col_norm:
+                max_col_norm = col_norm
+                i = j
+
+        P = arange(self.n)
+        
+        current = [i]
+        P = delete(P,i)
+        
+        x = self.A[:,[i]]/norm(self.A[:,i])
+        vals = x.T.dot(self.A[:,P]) ** 2
+        new_index = argmax(vals)
+        current.append(P[new_index])
+        P = delete(P,new_index)
+        
+        for i in range(self.s - 2):
+            value,vector = self.eigen_pair(current)
+            x = self.A[:,current].dot(vector)
+            x = x/norm(x)
+            vals = x.T.dot(self.A[:,P]) ** 2
+            new_index = argmax(vals)
+            current.append(P[new_index])
+            P = delete(P,new_index)
+        
+        val,vec,vec0 = self.eigen_pair0(current)
+        best_set,best_val = self.EM_mk2(vec0,current)
+        return best_set,best_val
+    
     def cholesky_mk3(self):
         top_s = zeros(int(self.s * self.search_multiplier),dtype = int)
         top_s_disk_radius = zeros(int(self.s * self.search_multiplier))
@@ -560,11 +718,12 @@ class SPCA_LM:
         
     def EM(self):
         v,wt = self.eigen_pair(list(range(self.n)))
+        order = arange(self.n)
         t = 0
         diff = 1
-        while diff >= 1e-4:
+        while diff >= 1e-6:
             t += 1
-            y = self.A.dot(wt)
+            y = self.A[:,order].dot(wt[order])
             w = y.T.dot(self.A)/(norm(y) ** 2)
             order = argsort(-1 * abs(w[0]))[:self.s]
             old_wt = wt
@@ -573,6 +732,24 @@ class SPCA_LM:
             wt = wt/norm(wt)
             diff = norm(wt-old_wt)
         pattern = where(abs(wt) > 0)[0]
+        value = self.eigen_upperbound(pattern)
+        return pattern,value
+    
+    def EM_mk2(self,x,support):
+        t = 0
+        diff = 1
+        while diff >= 1e-6:
+            t += 1
+            y = self.A[:,support].dot(x[support])
+            w = y.T.dot(self.A)
+            w = w/norm(w)
+            support = argsort(-1 * abs(w[0]))[:self.s]
+            old_x = x.copy()
+            x = zeros([self.n,1])
+            x[support,0] = w[0][support]
+            x = x/norm(x)
+            diff = norm(x-old_x)
+        pattern = where(abs(x) > 0)[0]
         value = self.eigen_upperbound(pattern)
         return pattern,value
     
