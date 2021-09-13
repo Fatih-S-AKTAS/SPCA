@@ -4,9 +4,21 @@ from scipy.sparse.linalg import eigsh
 from scipy.sparse import random as scipy_random
 from scipy.linalg import qr
 from numpy.linalg import norm,eigvalsh
+
 from queue import PriorityQueue
-from nesterov_functions import CustomDistribution
-from nesterov_wrapper import run_formulation
+
+from AM_functions import CustomDistribution
+from AM_wrapper import run_formulation
+
+"""
+This is a class based implementation of SPCA algorithms described in the paper
+
+Fatih S. Aktaş, Ömer Ekmekcioğlu, Mustafa Ç. Pınar, "Improved Greedy Enumeration Algorithms for Sparse PCA"
+
+If you use this software in your project, please cite the related paper.
+
+Please contact selim.aktas@bilkent.edu.tr for any bugs, errors and recommendations.
+"""
 
 class SPCA:
     def __init__(self,A,s):
@@ -15,8 +27,21 @@ class SPCA:
         -------------------------------------------------------------------------------------
         A       = m x n data matrix
         s       = sparsity level
+        -------------------------------------------------------------------------------------
+        Suggested use of code;
         
-        Please contact selim.aktas@ug.bilkent.edu.tr for any bugs, errors and recommendations.
+        class_instance = SPCA(A,s)
+        pattern,eigens,load,component,variance = class_instance.find_component(algorithm,number_of_components)
+        
+        pattern       = list of size number_of_components, of lists, contains the indices of the sparse patterns
+        eigens        = list of size number_of_components, contains the eigenvalues corresponding to sparse patterns
+                        given in the order described by variable (pattern)
+        load          = array of size s by number_of_components, that contains the loadings i.e sparse eigenvectors
+                        corresponding to patterns described by variable (pattern) in same order
+        component     = array of size m by number_of_components that contains components, projection of data matrix
+                        to sparse loadings given by variable (load)
+        variance      = similar to eigens list of size number_of_components, contains the adjusted variance of sparse
+                        patterns given in the order described by variable (pattern)
         """
         asarray_chkfinite(A)
         if type(A) != ndarray:
@@ -47,24 +72,36 @@ class SPCA:
             self.args = {'formulation': 'L2var_L0cons', 'dataname': 'ATandT_Database_of_Faces', 'dataDir': './data/',\
     'resultsDir': './results/', 'seed': 1, 'density_of_SP': 1, 'sparsity': self.s, 'tol': 1e-06, \
         'maxIter': 200, 'numOfTrials': 10, 'stabilityIter': 30, 'incDelta': 0.001}
-
+    
+    def set_s(self,s):
+        # changes sparsity level
+        self.s = s
+        self.args["s"] = s
+        
     def show(self,ind):
+        # utility function to show a submatrix 
+        # induced by set "ind"
         print(self.A2[:,ind][ind,:])
         return self.A2[:,ind][ind,:]
     
     def frobenius(self,ind):
+        # returns frobenius norm of a submatrix induced by set "ind"
         return norm(self.A2[:,ind][ind,:])
     
     def all_eigens(self,ind):
+        # returns all eigenvalues of a submatrix induced by set "ind"
         return eigvalsh(self.A2[:,ind][ind,:])
 
     def restart(self):
+        # deflation schemes change the matrix stored, in order to use the algorithms again
+        # all related cached information should be restarted with this function
         self.A = self.A0.copy()
         self.A2 = self.A.T.dot(self.A)
         self.diag = diag(self.A2)
         self.diag2 = self.diag ** 2
         
     def deflation_sparse_vector(self,svector,indices):        
+        # deflation using sparse vector "svector" and its coordinates "indices"
         dual_vector = self.A[:,indices].dot(svector)
         self.A[:,indices] = self.A[:,indices] - dual_vector.dot(svector.T)
         self.A2[:,indices] = self.A.T.dot(self.A[:,indices])
@@ -73,6 +110,10 @@ class SPCA:
         self.diag2 = self.diag ** 2
     
     def eigen_upperbound(self,ind):
+        # returns the dominant eigenvalue
+        # if logic controls the computation scheme, if set "ind" is small, uses
+        # submatrix to compute eigenvalue, otherwise uses A * A.T to compute eigenvalues
+        # depending on which one is cheaper
         if len(ind) <= self.m:
             dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
             return dominant_eigen_value[0]
@@ -81,6 +122,10 @@ class SPCA:
             return dominant_eigen_value[0]
     
     def eigen_pair(self,ind):
+        # returns the dominant eigenpair
+        # if logic controls the computation scheme, if set "ind" is small, uses
+        # submatrix to compute eigenvalue, otherwise uses A * A.T to compute eigenvalues
+        # depending on which one is cheaper
         if len(ind) <= self.m:
             eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
             return eigenvalue,eigenvector
@@ -92,6 +137,7 @@ class SPCA:
             return eigenvalue,eigenvector.T
 
     def eigen_pair0(self,ind):
+        # returns eigenvalue, eigenvector, and 0 padded eigenvector
         if len(ind) <= self.m:
             eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
         else:
@@ -102,6 +148,31 @@ class SPCA:
         eigenvector_padded = zeros([self.n,1])
         eigenvector_padded[ind] = eigenvector
         return eigenvalue,eigenvector,eigenvector_padded
+    
+    """
+    Following functions;
+    (Algorithm name + Algorithm step + whether iterative or recursive)
+    GCW1
+    GCW2
+    GCW1_iterative
+    GCW2_iterative
+    
+    PCW1
+    PCW2
+    PCW1_iterative
+    PCW2_iterative
+    
+    implementations of algorithms described by Beck & Vaisbourd 2016, for more information 
+    check their paper titled "The Sparse Principal Component Analysis Problem:
+    Optimality Conditions and Algorithms"
+    
+    greedy_forward
+    greedy_forward_stationary
+    greedy_forward_efficient
+    
+    these algorithms are equivalent to first step of PCW1 described in the same paper. Though 
+    this algorithm is initially investigated by Moghaddam et al 2006.
+    """
     
     def GCW1(self):
         two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
@@ -395,6 +466,9 @@ class SPCA:
             
         return C,best_value
 
+    # Algorithm 3.1 of the paper
+    # Sparse PCA algorithm based on Gerschgorin Discs
+    # imposes stationarity condition in the end
     def column_norm_1(self):
         best_set = []
         best_val = 0
@@ -411,6 +485,8 @@ class SPCA:
         best_set,best_val = self.EM_mk2(vec0,best_set)
         return best_set,best_val
 
+    # Algorithm 3.1 of the paper
+    # Sparse PCA algorithm based on Gerschgorin Discs
     def column_norm_1_old(self):
         best_set = []
         best_val = 0
@@ -425,6 +501,9 @@ class SPCA:
                 
         return best_set,best_val
     
+    # Algorithm 3.2 of the paper
+    # Sparse PCA algorithm based on l1 norm or correlations
+    # imposes stationarity condition in the end
     def correlation_cw(self):
         best_set = []
         best_val = 0
@@ -447,6 +526,8 @@ class SPCA:
         best_set,best_val = self.EM_mk2(vec0,best_set)
         return best_set,best_val
     
+    # Algorithm 3.2 of the paper
+    # Sparse PCA algorithm based on l1 norm or correlations
     def correlation_cw_old(self):
         best_set = []
         best_val = 0
@@ -467,6 +548,9 @@ class SPCA:
                 
         return best_set,best_val
     
+    # Algorithm 3.3 of the paper
+    # Sparse PCA algorithm based on frobenius norm
+    # imposes stationarity condition in the end
     def frobenius_cw(self):
         best_set = []
         best_val = 0
@@ -489,6 +573,8 @@ class SPCA:
         best_set,best_val = self.EM_mk2(vec0,best_set)
         return best_set,best_val
 
+    # Algorithm 3.3 of the paper
+    # Sparse PCA algorithm based on frobenius norm
     def frobenius_cw_old(self):
         best_set = []
         best_val = 0
@@ -509,6 +595,13 @@ class SPCA:
                 
         return best_set,best_val
     
+    # Following functions (named with cholesky) are implementations of 
+    # Approximate Greedy Search Algorithm by d’Aspremont, Bach and Ghaoui 2008 from paper titled
+    # "Optimal Solutions for Sparse Principal Component Analysis"
+    
+    
+    # Approximate Greedy Search Algorithm
+    # initialized with variable with the largest column norm
     def cholesky_mk2_old(self):
         
         P = arange(self.n)
@@ -534,6 +627,9 @@ class SPCA:
         
         return current,self.eigen_upperbound(current)
 
+    # Approximate Greedy Search Algorithm
+    # initialized with variable with the largest column norm
+    # imposes stationarity condition in the end
     def cholesky_mk2(self):
         
         P = arange(self.n)
@@ -561,6 +657,9 @@ class SPCA:
         best_set,best_val = self.EM_mk2(vec0,current)
         return best_set,best_val
     
+    # Approximate Greedy Search Algorithm
+    # initialized with variables with largest column norm
+    # for (sparsity_level * search_multiplier) many variables
     def cholesky_mk3(self):
         best_val = 0
         best_set = []
@@ -590,7 +689,14 @@ class SPCA:
                 best_val = final_value
                 best_set = current
         return best_set,best_val
-        
+
+    # Following functions (named with EM) are implementations of Expectation-Maximization
+    # Algorithm described in paper "Expectation-Maximization for Sparse and Non-Negative PCA" by
+    # Sigg and Buhmann 2008.
+    
+    
+    # Expectation Maximization Algorithm
+    # initialized with first PC
     def EM(self):
         v,wt = self.eigen_pair(list(range(self.n)))
         order = arange(self.n)
@@ -610,6 +716,9 @@ class SPCA:
         value = self.eigen_upperbound(pattern)
         return pattern,value
     
+    # Expectation Maximization Algorithm
+    # uses given input sparse vector and indices
+    # uses indices to avoid unnecessary flop
     def EM_mk2(self,x,support):
         t = 0
         diff = 1
@@ -628,6 +737,8 @@ class SPCA:
         value = self.eigen_upperbound(pattern)
         return pattern,value
 
+    # Expectation Maximization Algorithm
+    # uses given input vector
     def EM_mk3(self,x):
         t = 0
         diff = 1
@@ -646,7 +757,13 @@ class SPCA:
         value = self.eigen_upperbound(pattern)
         return pattern,value
     
-    def nesterov(self):
+    # Following function GPower compiles GPower algorithm described in paper "Generalized Power Method 
+    # for Sparse Principal Component Analysis" by Journee et al 2010. Following this paper, equivalent
+    # method and code is given in Alternating Maximization is described in "Alternating maximization: unifying
+    # framework for 8 sparse PCA formulations and efficient parallel codes" by Richtarik et al 2020.
+    # This function uses the software given by second paper. The software is modified and adapted for use
+    # with other implemented functions.
+    def GPower(self):
         R = CustomDistribution(seed=self.args['seed'])
         R_obj = R()  # get a frozen version of the distribution
         best_x = None
@@ -668,6 +785,20 @@ class SPCA:
         return best_x.row,bestVar
     
     def find_component(self,algo,k):
+        # this algorithm is an compiler for previously implemented methods
+        # it calls the stationarity imposed version of the algorithms
+        # inputs for the algorithm;
+        #
+        # algo             : choice of algorithm
+        # k                : number of components to compute
+        # 
+        # it returns;
+        #
+        # loading_patterns : sparse patterns
+        # eigen_values     : eigenvalues of the submatrix induced by sparse patterns
+        # all_loadings     : sparse eigenvectors that correspond to sparse patterns
+        # components       : components produced by loadings
+        # variance         : adjusted variance of each component
         if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","GPower","Greedy"]:
             print("bad algortihm choice, choose of one of the following")
             print("GD, CCW, FCW, PCW, GCW, Greedy, EM, Path,Path_mk2, GPower")
@@ -688,7 +819,7 @@ class SPCA:
         elif algo == "Path_mk2":
             algorithm = self.cholesky_mk3
         elif algo == "GPower":
-            algorithm = self.nesterov
+            algorithm = self.GPower
         elif algo == "Greedy":
             algorithm = self.greedy_forward_stationary
         all_loadings = zeros([self.s,k])
@@ -710,12 +841,10 @@ class SPCA:
     
     def solve_spca(self,P ,C = []):
         """ 
-
-        sparse principal component with 
+        This is a basic search algorithm to solve SPCA problem exactly, that uses
+        sparse column norm approximation of eigenvalues.
         
-        Sparse Column norm approximation of eigenvalues 
-        
-        This algorithm assumes columns of the original data matrix are scaled,
+        This algorithm assumes columns of the original data matrix are scaled, though
         this assumption is only relevant for heuristic reordering of variables
         
         """

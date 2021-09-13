@@ -80,10 +80,10 @@ t9 = time.process_time()
 print("Path/Chol done ")
 
 t10 = time.process_time()
-gp_set,gp_val = omega.nesterov()
+gp_set,gp_val = omega.GPower()
 t11 = time.process_time()
 
-print("Nesterov done ")
+print("GPower done ")
 
 t12 = time.process_time()
 P_pcw,pcw_set,pcw_val = omega.greedy_forward()
@@ -291,10 +291,10 @@ for iteration in range(1,up_to):
     print("Path/Chol done ")
     
     t10 = time.process_time()
-    gp_set,gp_val = omega.nesterov()
+    gp_set,gp_val = omega.GPower()
     t11 = time.process_time()
     
-    print("Nesterov done ")
+    print("GPower done ")
     
     t12 = time.process_time()
     P_pcw,pcw_set,pcw_val = omega.greedy_forward_efficient(P_pcw,pcw_set,pcw_val)

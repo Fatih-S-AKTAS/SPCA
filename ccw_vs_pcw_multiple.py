@@ -79,7 +79,7 @@ for iteration in range(0,up_to):
     t12 = time.process_time()
     pattern7,eigens7,load7,component7,variance7 = omega.find_component("Greedy",k)
     t13 = time.process_time()
-    print("Nesterov done ")
+    print("GPower done ")
     
     print("----------------------------")
     print("gerschgorin  ",t1-t0)
@@ -87,7 +87,7 @@ for iteration in range(0,up_to):
     print("frobenius    ",t5-t4)
     print("EM     ",t7-t6)
     print("Path     ",t9-t8)
-    print("nesterov     ",t11-t10)
+    print("GPower     ",t11-t10)
     print("PCW          ",t13-t12)
     print("----------------------------")
     print("gerschgorin  ",sum(variance1))
@@ -95,7 +95,7 @@ for iteration in range(0,up_to):
     print("frobenius    ",sum(variance3))
     print("EM          ",sum(variance4))
     print("Path     ",sum(variance5))
-    print("nesterov    ",sum(variance6))
+    print("GPower    ",sum(variance6))
     print("PCW      ",sum(variance7))
     
     s_cpu[iteration,0] = t1-t0
