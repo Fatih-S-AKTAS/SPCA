@@ -27,7 +27,7 @@ import numpy as np
 from numpy import linalg as LA
 # import argparse
 
-from GPower_functions import *
+from AM_functions import *
 
 def run_formulation(args, A_centered, X0, p):
     x = X0/LA.norm(X0.A)
