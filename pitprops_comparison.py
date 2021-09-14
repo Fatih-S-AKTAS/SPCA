@@ -77,7 +77,7 @@ for iteration in range(0,up_to-1):
     print("Path/Chol done ")
     
     t10 = time.process_time()
-    gp_set,gp_val = omega.nesterov()
+    gp_set,gp_val = omega.GPower()
     t11 = time.process_time()
     
     print("AM done ")
