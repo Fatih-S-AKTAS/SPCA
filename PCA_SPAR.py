@@ -30,8 +30,12 @@ class SPCA:
         -------------------------------------------------------------------------------------
         Suggested use of code;
         
+
         class_instance = SPCA(A,s)
         pattern,eigens,load,component,variance = class_instance.find_component(algorithm,number_of_components)
+
+        algorithm     : choice of spca algorithm
+        components    : number of components to compute
         
         pattern       = list of size number_of_components, of lists, contains the indices of the sparse patterns
         eigens        = list of size number_of_components, contains the eigenvalues corresponding to sparse patterns
@@ -76,7 +80,7 @@ class SPCA:
     def set_s(self,s):
         # changes sparsity level
         self.s = s
-        self.args["s"] = s
+        self.args["sparsity"] = s
         
     def show(self,ind):
         # utility function to show a submatrix 
@@ -832,6 +836,58 @@ class SPCA:
             loading_patterns.append(pattern)
             eigen_values.append(value)
             all_loadings[:,i] = eigenvector[:,0]
+            components[:,i] = self.A0[:,pattern].dot(eigenvector[:,0])
+            self.deflation_sparse_vector(eigenvector,pattern)
+        r = qr(components,mode = "r",pivoting = True)
+        variance = diag(r[0]) ** 2
+        self.restart()
+        return loading_patterns,eigen_values,all_loadings,components,variance
+
+    def find_component_var_spar(self,algo,k,s_list):
+        # see above algorithm for details
+        #
+        # this algorithm solves the problem of varying sparsify levels for components
+        #
+        # s_list             : a list of size k that specifies the sparsify levels for the components
+        #                      
+        if len(s_list) != k:
+            print("number of components and number of specified sparsity levels should be equal")            
+        if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","GPower","Greedy"]:
+            print("bad algortihm choice, choose of one of the following")
+            print("GD, CCW, FCW, PCW, GCW, Greedy, EM, Path,Path_mk2, GPower")
+        elif algo == "PCW":
+            algorithm = self.PCW1_iterative
+        elif algo == "GCW":
+            algorithm = self.GCW1_iterative
+        elif algo == "FCW":
+            algorithm = self.frobenius_cw
+        elif algo == "CCW":
+            algorithm = self.correlation_cw
+        elif algo == "GD":
+            algorithm = self.column_norm_1
+        elif algo == "EM":
+            algorithm = self.EM
+        elif algo == "Path":
+            algorithm = self.cholesky_mk2
+        elif algo == "Path_mk2":
+            algorithm = self.cholesky_mk3
+        elif algo == "GPower":
+            algorithm = self.GPower
+        elif algo == "Greedy":
+            algorithm = self.greedy_forward_stationary
+        all_loadings = zeros([max(s_list),k])
+        components = zeros([self.m,k])
+        loading_patterns = []
+        eigen_values = []
+        for i in range(k):
+            self.s = s_list[i]
+            self.args["sparsity"] = self.s
+            self.search_multiplier = min(self.n/self.s,10)
+            pattern,value = algorithm()
+            eigenvalue,eigenvector = self.eigen_pair(pattern)
+            loading_patterns.append(pattern)
+            eigen_values.append(value)
+            all_loadings[:self.s,i] = eigenvector[:,0]
             components[:,i] = self.A0[:,pattern].dot(eigenvector[:,0])
             self.deflation_sparse_vector(eigenvector,pattern)
         r = qr(components,mode = "r",pivoting = True)
