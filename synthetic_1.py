@@ -5,42 +5,39 @@ from matplotlib.pyplot import plot,grid,xlabel,ylabel,legend,title,figure
 
 from numpy import save as npsave
 import gc
+from scipy.io import savemat
+from datagenerator import varimax_paper_data
 #%%
 
 k = 1
 
 repeat = 30
-up_to = 50
+up_to = 16
 
 s_var = zeros([repeat,up_to,9])
 s_cpu = zeros([repeat,up_to,9])
 s_wall = zeros([repeat,up_to,9])
 
-progress = open("ccw_pcw_progress.txt","w")
+progress = open("synthetic1_progress.txt","w")
 try:
-    for rep in range(repeat):
-        A = random.normal(4,10,[100,2000])
+    for iteration in range(0,up_to):
+        for rep in range(repeat):
+            s = 16 + iteration
+            A = varimax_paper_data(100 + iteration * 20, s)
+            
+            m,n = shape(A)
+            
+            mdic = {"data": A, "label": "experiment"}
+            savemat("data_matrix.mat",mdic)
         
-        m,n = shape(A)
-        
-        A = A - A.mean(axis = 0)
-        
-        sA = std(A,axis = 0)
-        
-        A = A/sA
-        
-        s = 20
-        
-        omega = SPCA(A,s)
-        lambda_max,lambda_v = omega.eigen_pair(list(range(n)))
-        for iteration in range(0,up_to):
+            omega = SPCA(A,s)
+            lambda_max,lambda_v = omega.eigen_pair(list(range(n)))
+            
             progress.write("repetition "+str(rep)+" iteration "+str(iteration)+" begins\n")
             
-            sparsity = (iteration+1) * 5
-            omega.set_sparsity(sparsity)
             omega.args["numOfTrials"] = 100
             print("!!! Current Repeat",rep,"!!!")
-            print("!!! Current Sparsity level",sparsity,"!!!")
+            print("!!! Current Sparsity level",s,"!!!")
             omega.search = min(200,n)
             
             
@@ -100,7 +97,7 @@ try:
             
             w12 = time.time()
             t12 = time.process_time()
-            pattern7,eigens7,load7,component7,variance7 = omega.find_component("PCW",k)
+            pattern7,eigens7,load7,component7,variance7 = omega.find_component("PCW_memory",k)
             t13 = time.process_time()
             w13 = time.time()
             print("PCW done ")
@@ -109,7 +106,7 @@ try:
             
             w14 = time.time()
             t14 = time.process_time()
-            pattern8,eigens8,load8,component8,variance8 = omega.find_component("GCW",k)
+            pattern8,eigens8,load8,component8,variance8 = omega.find_component("GCW_memory",k)
             t15 = time.process_time()
             w15 = time.time()
             print("GCW done ")
@@ -118,7 +115,7 @@ try:
             
             w16 = time.time()
             t16 = time.process_time()
-            pattern9,eigens9,load9,component9,variance9 = omega.find_component("gpbbls",k)
+            pattern9,eigens9,load9,component9,variance9 = omega.find_component("gpbbls_memory",k)
             t17 = time.process_time()
             w17 = time.time()
             print("GPBB-ls done ")
@@ -250,17 +247,17 @@ xlabel("Sparsity")
 ylabel("Wall Time (s)")
 title("Wall Time Against Sparsity Level")
 
-varf.savefig("CW_comparison_variance.eps",format = "eps")
-cpuf.savefig("CW_comparison_cpu.eps",format = "eps")
-wallf.savefig("CW_comparison_wall.eps",format = "eps")
+varf.savefig("synthetic1_variance.eps",format = "eps")
+cpuf.savefig("synthetic1_cpu.eps",format = "eps")
+wallf.savefig("synthetic1_wall.eps",format = "eps")
 
-varf.savefig("CW_comparison_variance_png.png",format = "png")
-cpuf.savefig("CW_comparison_cpu_png.png",format = "png")
-wallf.savefig("CW_comparison_wall_png.png",format = "png")
+varf.savefig("synthetic1_variance_png.png",format = "png")
+cpuf.savefig("synthetic1_cpu_png.png",format = "png")
+wallf.savefig("synthetic1_wall_png.png",format = "png")
 
-npsave("CW_comparison_variance.npy",s_var)
-npsave("CW_comparison_cpu.npy",s_cpu)
-npsave("CW_comparison_wall.npy",s_wall)
+npsave("synthetic1_variance.npy",s_var)
+npsave("synthetic1_cpu.npy",s_cpu)
+npsave("synthetic1_wall.npy",s_wall)
 
 progress.write("terminated succesfully \n")
 progress.close()

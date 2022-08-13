@@ -5,6 +5,7 @@ from matplotlib.pyplot import plot,grid,xlabel,ylabel,legend,title,figure
 
 from numpy import save as npsave
 import gc
+from scipy.io import savemat
 #%%
 
 k = 1
@@ -16,10 +17,10 @@ s_var = zeros([repeat,up_to,9])
 s_cpu = zeros([repeat,up_to,9])
 s_wall = zeros([repeat,up_to,9])
 
-progress = open("ccw_pcw_progress.txt","w")
+progress = open("ccw10_pcw_progress.txt","w")
 try:
     for rep in range(repeat):
-        A = random.normal(4,10,[100,2000])
+        A = random.normal(4,10,[100,10000])
         
         m,n = shape(A)
         
@@ -31,6 +32,9 @@ try:
         
         s = 20
         
+        mdic = {"data": A, "label": "experiment"}
+        savemat("data_matrix.mat",mdic)
+
         omega = SPCA(A,s)
         lambda_max,lambda_v = omega.eigen_pair(list(range(n)))
         for iteration in range(0,up_to):
@@ -100,7 +104,7 @@ try:
             
             w12 = time.time()
             t12 = time.process_time()
-            pattern7,eigens7,load7,component7,variance7 = omega.find_component("PCW",k)
+            pattern7,eigens7,load7,component7,variance7 = omega.find_component("PCW_memory",k)
             t13 = time.process_time()
             w13 = time.time()
             print("PCW done ")
@@ -109,7 +113,7 @@ try:
             
             w14 = time.time()
             t14 = time.process_time()
-            pattern8,eigens8,load8,component8,variance8 = omega.find_component("GCW",k)
+            pattern8,eigens8,load8,component8,variance8 = omega.find_component("GCW_memory",k)
             t15 = time.process_time()
             w15 = time.time()
             print("GCW done ")
@@ -118,7 +122,7 @@ try:
             
             w16 = time.time()
             t16 = time.process_time()
-            pattern9,eigens9,load9,component9,variance9 = omega.find_component("gpbbls",k)
+            pattern9,eigens9,load9,component9,variance9 = omega.find_component("gpbbls_memory",k)
             t17 = time.process_time()
             w17 = time.time()
             print("GPBB-ls done ")
@@ -250,17 +254,17 @@ xlabel("Sparsity")
 ylabel("Wall Time (s)")
 title("Wall Time Against Sparsity Level")
 
-varf.savefig("CW_comparison_variance.eps",format = "eps")
-cpuf.savefig("CW_comparison_cpu.eps",format = "eps")
-wallf.savefig("CW_comparison_wall.eps",format = "eps")
+varf.savefig("CW10_comparison_variance.eps",format = "eps")
+cpuf.savefig("CW10_comparison_cpu.eps",format = "eps")
+wallf.savefig("CW10_comparison_wall.eps",format = "eps")
 
-varf.savefig("CW_comparison_variance_png.png",format = "png")
-cpuf.savefig("CW_comparison_cpu_png.png",format = "png")
-wallf.savefig("CW_comparison_wall_png.png",format = "png")
+varf.savefig("CW10_comparison_variance_png.png",format = "png")
+cpuf.savefig("CW10_comparison_cpu_png.png",format = "png")
+wallf.savefig("CW10_comparison_wall_png.png",format = "png")
 
-npsave("CW_comparison_variance.npy",s_var)
-npsave("CW_comparison_cpu.npy",s_cpu)
-npsave("CW_comparison_wall.npy",s_wall)
+npsave("CW10_comparison_variance.npy",s_var)
+npsave("CW10_comparison_cpu.npy",s_cpu)
+npsave("CW10_comparison_wall.npy",s_wall)
 
 progress.write("terminated succesfully \n")
 progress.close()

@@ -1,14 +1,19 @@
 from numpy import Inf,ndarray,shape,argmax,zeros,argsort,where,diag,sum,\
-    arange,delete,absolute,asarray_chkfinite
+    arange,delete,absolute,asarray_chkfinite,asarray,concatenate,unique,sort,isnan,NaN
 from scipy.sparse.linalg import eigsh
 from scipy.sparse import random as scipy_random
 from scipy.linalg import qr
+from scipy.io import savemat
 from numpy.linalg import norm,eigvalsh
 
 from queue import PriorityQueue
 
 from AM_functions import CustomDistribution
 from AM_wrapper import run_formulation
+
+import matlab
+import matlab.engine
+
 
 """
 This is a class based implementation of SPCA algorithms described in the paper
@@ -65,19 +70,47 @@ class SPCA:
             self.A0 = A.copy()
             self.A = A.copy()
             self.A2 = A.T.dot(A)
-            self.diag = diag(self.A2)
-            self.diag2 = self.diag ** 2
 
             self.eigenvalues = []
             self.eigenindices = []
             self.eigenvectors = []
             
-            self.search_multiplier = 10
+            self.search = min(200,self.n)
             self.args = {'formulation': 'L2var_L0cons', 'dataname': 'ATandT_Database_of_Faces', 'dataDir': './data/',\
     'resultsDir': './results/', 'seed': 1, 'density_of_SP': 1, 'sparsity': self.s, 'tol': 1e-06, \
         'maxIter': 200, 'numOfTrials': 10, 'stabilityIter': 30, 'incDelta': 0.001}
+
+            self.mat_eng = matlab.engine.start_matlab()
     
-    def set_s(self,s):
+    def PCW(self):
+        x,f = self.mat_eng.cwPCA(matlab.double(self.A.tolist()),self.s,"type","PCW","mat_type","DMat",nargout = 2)
+        x = asarray(x)
+        return where(asarray(x) != 0)[0],x.T.dot(self.A2.dot(x))
+    def GCW(self):
+        x,f = self.mat_eng.cwPCA(matlab.double(self.A.tolist()),self.s,"type","GCW","mat_type","DMat",nargout = 2)
+        x = asarray(x)
+        return where(asarray(x) != 0)[0],x.T.dot(self.A2.dot(x))
+
+    def PCW_memory(self):
+        x,f = self.mat_eng.cwPCA_memory(self.s,"type","PCW","mat_type","DMat",nargout = 2)
+        x = asarray(x)
+        return where(asarray(x) != 0)[0],x.T.dot(self.A2.dot(x))
+    def GCW_memory(self):
+        x,f = self.mat_eng.cwPCA_memory(self.s,"type","GCW","mat_type","DMat",nargout = 2)
+        x = asarray(x)
+        return where(asarray(x) != 0)[0],x.T.dot(self.A2.dot(x))
+    
+    def gpbbls(self):
+        x,f = self.mat_eng.gpbbls(matlab.double(self.A.tolist()),self.s,nargout = 2)
+        # x = asarray(x)
+        return where(asarray(x) != 0)[0],f
+    
+    def gpbbls_memory(self):
+        x,f = self.mat_eng.gpbbls_memory(self.s,nargout = 2)
+        # x = asarray(x)
+        return where(asarray(x) != 0)[0],f
+    
+    def set_sparsity(self,s):
         # changes sparsity level
         self.s = s
         self.args["sparsity"] = s
@@ -101,17 +134,17 @@ class SPCA:
         # all related cached information should be restarted with this function
         self.A = self.A0.copy()
         self.A2 = self.A.T.dot(self.A)
-        self.diag = diag(self.A2)
-        self.diag2 = self.diag ** 2
+        mdic = {"data": self.A0, "label": "experiment"}
+        savemat("data_matrix.mat",mdic)
         
     def deflation_sparse_vector(self,svector,indices):        
         # deflation using sparse vector "svector" and its coordinates "indices"
         dual_vector = self.A[:,indices].dot(svector)
         self.A[:,indices] = self.A[:,indices] - dual_vector.dot(svector.T)
+        mdic = {"data": self.A, "label": "experiment"}
+        savemat("data_matrix.mat",mdic)
         self.A2[:,indices] = self.A.T.dot(self.A[:,indices])
         self.A2[indices,:] = self.A2[:,indices].T
-        self.diag = diag(self.A2)
-        self.diag2 = self.diag ** 2
     
     def eigen_upperbound(self,ind):
         # returns the dominant eigenvalue
@@ -119,10 +152,10 @@ class SPCA:
         # submatrix to compute eigenvalue, otherwise uses A * A.T to compute eigenvalues
         # depending on which one is cheaper
         if len(ind) <= self.m:
-            dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
+            dominant_eigen_value = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-8,return_eigenvectors = False)
             return dominant_eigen_value[0]
         else:
-            dominant_eigen_value = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-3,return_eigenvectors = False)
+            dominant_eigen_value = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-8,return_eigenvectors = False)
             return dominant_eigen_value[0]
     
     def eigen_pair(self,ind):
@@ -131,10 +164,10 @@ class SPCA:
         # submatrix to compute eigenvalue, otherwise uses A * A.T to compute eigenvalues
         # depending on which one is cheaper
         if len(ind) <= self.m:
-            eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
+            eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-8,return_eigenvectors = True)
             return eigenvalue,eigenvector
         else:
-            eigenvalue,dualeigenvector = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
+            eigenvalue,dualeigenvector = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-8,return_eigenvectors = True)
             eigenvector = dualeigenvector.T.dot(self.A[:,ind])
             eigenvector = eigenvector/norm(eigenvector)
 
@@ -143,332 +176,15 @@ class SPCA:
     def eigen_pair0(self,ind):
         # returns eigenvalue, eigenvector, and 0 padded eigenvector
         if len(ind) <= self.m:
-            eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
+            eigenvalue,eigenvector = eigsh(self.A2[:,ind][ind,:],k = 1, which = "LA", tol = 1e-8,return_eigenvectors = True)
         else:
-            eigenvalue,dualeigenvector = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-3,return_eigenvectors = True)
+            eigenvalue,dualeigenvector = eigsh(self.A[:,ind].dot(self.A[:,ind].T),k = 1, which = "LA", tol = 1e-8,return_eigenvectors = True)
             eigenvector = dualeigenvector.T.dot(self.A[:,ind])
             eigenvector = eigenvector/norm(eigenvector)
             eigenvector = eigenvector.T
         eigenvector_padded = zeros([self.n,1])
         eigenvector_padded[ind] = eigenvector
         return eigenvalue,eigenvector,eigenvector_padded
-    
-    """
-    Following functions;
-    (Algorithm name + Algorithm step + whether iterative or recursive)
-    GCW1
-    GCW2
-    GCW1_iterative
-    GCW2_iterative
-    
-    PCW1
-    PCW2
-    PCW1_iterative
-    PCW2_iterative
-    
-    implementations of algorithms described by Beck & Vaisbourd 2016, for more information 
-    check their paper titled "The Sparse Principal Component Analysis Problem:
-    Optimality Conditions and Algorithms"
-    
-    greedy_forward
-    greedy_forward_stationary
-    greedy_forward_efficient
-    
-    these algorithms are equivalent to first step of PCW1 described in the same paper. Though 
-    this algorithm is initially investigated by Moghaddam et al 2006.
-    """
-    
-    def GCW1(self):
-        two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
-        index1 = two_indices % self.n 
-        index2 = two_indices // self.n
-        C = [index1,index2]
-        P = list(range(self.n))
-        P.remove(index1)
-        P.remove(index2)
-        best_value = self.eigen_upperbound(C)
-        len_c = len(C)
-        len_p = len(P)
-        while len_c < self.s:
-            len_c += 1
-            len_p -= 1
-            best_index = 0
-            best_value = 0
-            for i in range(len_p):
-                C_temp = C + [P[i]]
-                value = self.eigen_upperbound(C_temp)
-                if value > best_value:
-                    best_value = value
-                    best_index = i
-            C = C + [P[best_index]]
-            P.remove(P[best_index])
-        return self.GCW2(best_value,P,C)
-            
-    def GCW2(self,best_value,P,C):
-        len_p = len(P)
-        len_c = len(C)
-        
-        temp_best = 0
-        enter = -1
-        leave = -1
-        for i in range(len_c):
-            for j in range(len_p):
-                C_temp = C + [P[j]]
-                C_temp.remove(C[i])
-                value = self.eigen_upperbound(C_temp)
-                if value > temp_best:
-                    temp_best = value
-                    enter = j
-                    leave = i
-        if temp_best > best_value:
-            C_temp = C +[P[enter]]
-            C_temp.remove(C[leave])
-            P += [C[leave]]
-            P.remove(P[enter])
-            return self.GCW2(value,P,C_temp)
-        else:
-            return C,best_value
-
-    def GCW1_iterative(self):
-        two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
-        index1 = two_indices % self.n 
-        index2 = two_indices // self.n
-        C = [index1,index2]
-        P = list(range(self.n))
-        P.remove(index1)
-        P.remove(index2)
-        best_value = self.eigen_upperbound(C)
-        len_c = len(C)
-        len_p = len(P)
-        while len_c < self.s:
-            len_c += 1
-            len_p -= 1
-            best_index = 0
-            best_value = 0
-            for i in range(len_p):
-                C_temp = C + [P[i]]
-                value = self.eigen_upperbound(C_temp)
-                if value > best_value:
-                    best_value = value
-                    best_index = i
-            C = C + [P[best_index]]
-            P.remove(P[best_index])
-        return self.GCW2_iterative(best_value,P,C)
-            
-    def GCW2_iterative(self,best_value,P,C):
-        len_p = len(P)
-        len_c = len(C)
-        
-        change = True
-        while change:
-            change = False
-            temp_best = 0
-            enter = -1
-            leave = -1
-            for i in range(len_c):
-                for j in range(len_p):
-                    C_temp = C + [P[j]]
-                    C_temp.remove(C[i])
-                    value = self.eigen_upperbound(C_temp)
-                    if value > temp_best:
-                        temp_best = value
-                        enter = j
-                        leave = i
-            if temp_best > best_value:
-                best_value = temp_best
-                C = C + [P[enter]]
-                P += [C[leave]]
-                C.remove(C[leave])
-                P.remove(P[enter])
-                change = True
-        
-        return C,best_value
-           
-    def greedy_forward(self):
-        two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
-        index1 = two_indices % self.n 
-        index2 = two_indices // self.n
-        C = [index1,index2]
-        P = list(range(self.n))
-        P.remove(index1)
-        P.remove(index2)
-        best_value = self.eigen_upperbound(C)
-        len_c = len(C)
-        len_p = len(P)
-        while len_c < self.s:
-            len_c += 1
-            len_p -= 1
-            best_index = 0
-            best_value = 0
-            for i in range(len_p):
-                C_temp = C + [P[i]]
-                value = self.eigen_upperbound(C_temp)
-                if value > best_value:
-                    best_value = value
-                    best_index = i
-            C = C + [P[best_index]]
-            P.remove(P[best_index])
-            
-        return P,C,best_value
-
-    def greedy_forward_stationary(self):
-        two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
-        index1 = two_indices % self.n 
-        index2 = two_indices // self.n
-        C = [index1,index2]
-        P = list(range(self.n))
-        P.remove(index1)
-        P.remove(index2)
-        best_value = self.eigen_upperbound(C)
-        len_c = len(C)
-        len_p = len(P)
-        while len_c < self.s:
-            len_c += 1
-            len_p -= 1
-            best_index = 0
-            best_value = 0
-            for i in range(len_p):
-                C_temp = C + [P[i]]
-                value = self.eigen_upperbound(C_temp)
-                if value > best_value:
-                    best_value = value
-                    best_index = i
-            C = C + [P[best_index]]
-            P.remove(P[best_index])
-        
-        val,vec,vec0 = self.eigen_pair0(C)
-        best_set,best_val = self.EM_mk2(vec0,C)
-        return best_set,best_val
-
-    def greedy_forward_efficient(self,P,C,best_value):
-        len_c = len(C)
-        len_p = len(P)
-        while len_c < self.s:
-            len_c += 1
-            len_p -= 1
-            best_index = 0
-            best_value = 0
-            for i in range(len_p):
-                C_temp = C + [P[i]]
-                value = self.eigen_upperbound(C_temp)
-                if value > best_value:
-                    best_value = value
-                    best_index = i
-            C = C + [P[best_index]]
-            P.remove(P[best_index])
-        return P,C,best_value
-
-    def PCW1(self):
-        two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
-        index1 = two_indices % self.n 
-        index2 = two_indices // self.n
-        C = [index1,index2]
-        P = list(range(self.n))
-        P.remove(index1)
-        P.remove(index2)
-        best_value = [self.eigen_upperbound(C)]
-        len_c = len(C)
-        len_p = len(P)
-        while len_c < self.s:
-            len_c += 1
-            len_p -= 1
-            best_index = 0
-            best_value = 0
-            for i in range(len_p):
-                C_temp = C + [P[i]]
-                value,vector = self.eigen_pair(C_temp)
-                if value > best_value:
-                    best_value = value
-                    best_vector = vector
-                    best_index = i
-            C = C + [P[best_index]]
-            P.remove(P[best_index])
-        return self.PCW2(best_value[0],best_vector,P,C)
-    
-    def PCW2(self,best_value,best_vector,P,C):
-        len_p = len(P)
-        len_c = len(C)
-        sorted_vector = argsort(abs(best_vector[:,0]))
-        t = 0
-        while t < len_c:
-            i = sorted_vector[t]
-            t += 1
-            temp_best = 0
-            enter = -1
-            for j in range(len_p):
-                C_temp = C + [P[j]]
-                C_temp.remove(C[i])
-                value,vector = self.eigen_pair(C_temp)
-                if value[0] > temp_best:
-                    temp_best = value[0]
-                    enter = j
-            if temp_best > best_value:
-                C_temp = C + [P[enter]]
-                C_temp.remove(C[i])
-                P += [C[i]]
-                P.remove(P[enter])
-                return self.PCW2(temp_best,vector,P,C_temp)
-            
-        return C,best_value
-
-    def PCW1_iterative(self):
-        two_indices = argmax(abs(self.A2)-diag(self.diag),axis = None)
-        index1 = two_indices % self.n 
-        index2 = two_indices // self.n
-        C = [index1,index2]
-        P = list(range(self.n))
-        P.remove(index1)
-        P.remove(index2)
-        best_value = self.eigen_upperbound(C)
-        len_c = len(C)
-        len_p = len(P)
-        while len_c < self.s:
-            len_c += 1
-            len_p -= 1
-            best_index = 0
-            best_value = 0
-            for i in range(len_p):
-                C_temp = C + [P[i]]
-                value,vector = self.eigen_pair(C_temp)
-                if value > best_value:
-                    best_value = value
-                    best_vector = vector
-                    best_index = i
-            C = C + [P[best_index]]
-            P.remove(P[best_index])
-        return self.PCW2_iterative(best_value[0],best_vector,P,C)
-    
-    def PCW2_iterative(self,best_value,best_vector,P,C):
-        len_p = len(P)
-        len_c = len(C)
-        sorted_vector = argsort(abs(best_vector[:,0]))
-        change = True
-        while change:
-            change = False
-            t = 0
-            while t < len_c:
-                i = sorted_vector[t]
-                t += 1
-                temp_best = 0
-                enter = -1
-                for j in range(len_p):
-                    C_temp = C + [P[j]]
-                    C_temp.remove(C[i])
-                    value,vector = self.eigen_pair(C_temp)
-                    if value[0] > temp_best:
-                        temp_best = value[0]
-                        enter = j
-                if temp_best > best_value:
-                    best_value = temp_best
-                    P += [C[i]]
-                    C += [P[enter]]
-                    P.remove(P[enter])
-                    C.remove(C[i])
-                    sorted_vector = argsort(abs(vector[:,0]))
-                    change = True
-                    break
-            
-        return C,best_value
 
     # Algorithm 3.1 of the paper
     # Sparse PCA algorithm based on Gerschgorin Discs
@@ -477,27 +193,27 @@ class SPCA:
         best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s = argsorted[:int(self.s * self.search_multiplier)]
-        R = argsort(absolute(self.A2[top_s,:]),axis = 1)[:,self.n-self.s:].tolist()
-        for i in range(int(self.s * self.search_multiplier)):
-            val = self.eigen_upperbound(R[i])
-            if val > best_val:
-                best_val = val
-                best_set = R[i]
-                
-        val,vec,vec0 = self.eigen_pair0(best_set)
-        best_set,best_val = self.EM_mk2(vec0,best_set)
+        top_s = argsorted[:self.search]
+        R = argsort(absolute(self.A2[top_s,:]),axis = 1)[:,self.n-self.s:]
+        R = unique(sort(R),axis = 0)
+        for i in range(R.shape[0]):
+            val,vec,vec0 = self.eigen_pair0(R[i])
+            new_set,new_val = self.EM_mk2(vec0,R[i])
+            if new_val > best_val:
+                best_val = new_val
+                best_set = new_set
+    
         return best_set,best_val
-
+    
     # Algorithm 3.1 of the paper
     # Sparse PCA algorithm based on Gerschgorin Discs
     def column_norm_1_old(self):
         best_set = []
         best_val = 0
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s = argsorted[:int(self.s * self.search_multiplier)]
+        top_s = argsorted[:self.search]
         R = argsort(absolute(self.A2[top_s,:]),axis = 1)[:,self.n-self.s:].tolist()
-        for i in range(int(self.s * self.search_multiplier)):
+        for i in range(self.search):
             val = self.eigen_upperbound(R[i])
             if val > best_val:
                 best_val = val
@@ -511,23 +227,22 @@ class SPCA:
     def correlation_cw(self):
         best_set = []
         best_val = 0
-        argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s = argsorted[:int(self.s * self.search_multiplier)]
-        for i in top_s:
-            possible = list(range(self.n))
-            possible.pop(i)
-            current = [i]
-            for j in range(self.s-1):
-                k = argmax(sum(absolute(self.A2[current,:][:,possible]),axis = 0) + self.diag[possible])
-                current.append(possible[k])
-                del possible[k]
-            val = self.eigen_upperbound(current)
-            if val > best_val:
-                best_val = val
-                best_set = current
+        argsorted = argsort(-1 * norm(self.A2,axis = 1,keepdims = True),axis = 0)
+        top_s = argsorted[:self.search]
+        rang = arange(self.search).reshape([self.search,1])
+        for j in range(self.s-1):
+            S = absolute(self.A2[top_s,:]).sum(axis = 1)
+            S[rang,top_s] = 0
+            new_column = S.argmax(axis = 1).reshape([self.search,1])
+            top_s = concatenate((top_s,new_column),axis = 1)
+        R = unique(sort(top_s),axis = 0)
+        for i in range(R.shape[0]):
+            val,vec,vec0 = self.eigen_pair0(R[i])
+            new_set,new_val = self.EM_mk2(vec0,R[i])
+            if new_val > best_val:
+                best_val = new_val
+                best_set = new_set
                 
-        val,vec,vec0 = self.eigen_pair0(best_set)
-        best_set,best_val = self.EM_mk2(vec0,best_set)
         return best_set,best_val
     
     # Algorithm 3.2 of the paper
@@ -535,20 +250,20 @@ class SPCA:
     def correlation_cw_old(self):
         best_set = []
         best_val = 0
-        argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s = argsorted[:int(self.s * self.search_multiplier)]
-        for i in top_s:
-            possible = list(range(self.n))
-            possible.pop(i)
-            current = [i]
-            for j in range(self.s-1):
-                k = argmax(sum(absolute(self.A2[current,:][:,possible]),axis = 0) + self.diag[possible])
-                current.append(possible[k])
-                del possible[k]
-            val = self.eigen_upperbound(current)
+        argsorted = argsort(-1 * norm(self.A2,axis = 1,keepdims = True),axis = 0)
+        top_s = argsorted[:self.search]
+        rang = arange(self.search).reshape([self.search,1])
+        for j in range(self.s-1):
+            S = absolute(self.A2[top_s,:]).sum(axis = 1)
+            S[rang,top_s] = 0
+            new_column = S.argmax(axis = 1).reshape([self.search,1])
+            top_s = concatenate((top_s,new_column),axis = 1)
+        R = unique(sort(top_s),axis = 0)
+        for i in range(R.shape[0]):
+            val = self.eigen_upperbound(R[i])
             if val > best_val:
                 best_val = val
-                best_set = current
+                best_set = R[i]
                 
         return best_set,best_val
     
@@ -558,51 +273,49 @@ class SPCA:
     def frobenius_cw(self):
         best_set = []
         best_val = 0
-        argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s = argsorted[:int(self.s * self.search_multiplier)]
-        for i in top_s:
-            possible = list(range(self.n))
-            possible.pop(i)
-            current = [i]
-            for j in range(self.s-1):
-                k = argmax(sum(self.A2[current,:][:,possible] ** 2,axis = 0) + self.diag2[possible])
-                current.append(possible[k])
-                del possible[k]
-            val = self.eigen_upperbound(current)
-            if val > best_val:
-                best_val = val
-                best_set = current
+        argsorted = argsort(-1 * norm(self.A2,axis = 1,keepdims = True),axis = 0)
+        top_s = argsorted[:self.search]
+        rang = arange(self.search).reshape([self.search,1])
+        for j in range(self.s-1):
+            S = (self.A2[top_s,:] ** 2).sum(axis = 1)
+            S[rang,top_s] = 0
+            new_column = S.argmax(axis = 1).reshape([self.search,1])
+            top_s = concatenate((top_s,new_column),axis = 1)
+        R = unique(sort(top_s),axis = 0)
+        for i in range(R.shape[0]):
+            val,vec,vec0 = self.eigen_pair0(R[i])
+            new_set,new_val = self.EM_mk2(vec0,R[i])
+            if new_val > best_val:
+                best_val = new_val
+                best_set = new_set
                 
-        val,vec,vec0 = self.eigen_pair0(best_set)
-        best_set,best_val = self.EM_mk2(vec0,best_set)
         return best_set,best_val
-
+    
     # Algorithm 3.3 of the paper
     # Sparse PCA algorithm based on frobenius norm
     def frobenius_cw_old(self):
         best_set = []
         best_val = 0
-        argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s = argsorted[:int(self.s * self.search_multiplier)]
-        for i in top_s:
-            possible = list(range(self.n))
-            possible.pop(i)
-            current = [i]
-            for j in range(self.s-1):
-                k = argmax(sum(self.A2[current,:][:,possible] ** 2,axis = 0) + self.diag2[possible])
-                current.append(possible[k])
-                del possible[k]
-            val = self.eigen_upperbound(current)
+        argsorted = argsort(-1 * norm(self.A2,axis = 1,keepdims = True),axis = 0)
+        top_s = argsorted[:self.search]
+        rang = arange(self.search).reshape([self.search,1])
+        for j in range(self.s-1):
+            S = (self.A2[top_s,:] ** 2).sum(axis = 1)
+            S[rang,top_s] = 0
+            new_column = S.argmax(axis = 1).reshape([self.search,1])
+            top_s = concatenate((top_s,new_column),axis = 1)
+        R = unique(sort(top_s),axis = 0)
+        for i in range(R.shape[0]):
+            val = self.eigen_upperbound(R[i])
             if val > best_val:
                 best_val = val
-                best_set = current
+                best_set = R[i]
                 
         return best_set,best_val
     
     # Following functions (named with cholesky) are implementations of 
     # Approximate Greedy Search Algorithm by d’Aspremont, Bach and Ghaoui 2008 from paper titled
     # "Optimal Solutions for Sparse Principal Component Analysis"
-    
     
     # Approximate Greedy Search Algorithm
     # initialized with variable with the largest column norm
@@ -668,7 +381,7 @@ class SPCA:
         best_val = 0
         best_set = []
         argsorted = argsort(-1 * norm(self.A2,axis = 1))
-        top_s = argsorted[:int(self.s * self.search_multiplier)]
+        top_s = argsorted[:self.search]
         for i in top_s:
             current = [i]
             P = arange(self.n)
@@ -697,7 +410,6 @@ class SPCA:
     # Following functions (named with EM) are implementations of Expectation-Maximization
     # Algorithm described in paper "Expectation-Maximization for Sparse and Non-Negative PCA" by
     # Sigg and Buhmann 2008.
-    
     
     # Expectation Maximization Algorithm
     # initialized with first PC
@@ -803,13 +515,18 @@ class SPCA:
         # all_loadings     : sparse eigenvectors that correspond to sparse patterns
         # components       : components produced by loadings
         # variance         : adjusted variance of each component
-        if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","GPower","Greedy"]:
+        if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","GPower","gpbbls",\
+                        "gpbbls_memory","PCW_memory","GCW_memory"]:
             print("bad algortihm choice, choose of one of the following")
-            print("GD, CCW, FCW, PCW, GCW, Greedy, EM, Path,Path_mk2, GPower")
+            print("GD, CCW, FCW, PCW, GCW, Greedy, EM, Path,Path_mk2, GPower, gpbbls")
         elif algo == "PCW":
-            algorithm = self.PCW1_iterative
+            algorithm = self.PCW
         elif algo == "GCW":
-            algorithm = self.GCW1_iterative
+            algorithm = self.GCW
+        elif algo == "PCW_memory":
+            algorithm = self.PCW_memory
+        elif algo == "GCW_memory":
+            algorithm = self.GCW_memory
         elif algo == "FCW":
             algorithm = self.frobenius_cw
         elif algo == "CCW":
@@ -824,8 +541,10 @@ class SPCA:
             algorithm = self.cholesky_mk3
         elif algo == "GPower":
             algorithm = self.GPower
-        elif algo == "Greedy":
-            algorithm = self.greedy_forward_stationary
+        elif algo == "gpbbls":
+            algorithm = self.gpbbls
+        elif algo == "gpbbls_memory":
+            algorithm = self.gpbbls_memory
         all_loadings = zeros([self.s,k])
         components = zeros([self.m,k])
         loading_patterns = []
@@ -852,13 +571,13 @@ class SPCA:
         #                      
         if len(s_list) != k:
             print("number of components and number of specified sparsity levels should be equal")            
-        if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","GPower","Greedy"]:
+        if algo not in ["PCW","GCW","GD","FCW","CCW","EM","Path","Path_mk2","GPower","gpbbls"]:
             print("bad algortihm choice, choose of one of the following")
-            print("GD, CCW, FCW, PCW, GCW, Greedy, EM, Path,Path_mk2, GPower")
+            print("GD, CCW, FCW, PCW, GCW, Greedy, EM, Path,Path_mk2, GPower, gpbbls")
         elif algo == "PCW":
-            algorithm = self.PCW1_iterative
+            algorithm = self.PCW
         elif algo == "GCW":
-            algorithm = self.GCW1_iterative
+            algorithm = self.GCW
         elif algo == "FCW":
             algorithm = self.frobenius_cw
         elif algo == "CCW":
@@ -873,8 +592,8 @@ class SPCA:
             algorithm = self.cholesky_mk3
         elif algo == "GPower":
             algorithm = self.GPower
-        elif algo == "Greedy":
-            algorithm = self.greedy_forward_stationary
+        elif algo == "gpbbls":
+            algorithm = self.gpbbls
         all_loadings = zeros([max(s_list),k])
         components = zeros([self.m,k])
         loading_patterns = []

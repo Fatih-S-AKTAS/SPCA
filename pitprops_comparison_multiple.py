@@ -1,150 +1,221 @@
-import gc
-
-gc.collect()
-
-#%%
 from PCA_SPAR import SPCA
 from numpy import reshape,mean,ones,arange,shape,std,zeros,load,random
-from scipy.linalg import cholesky
 import time
-from static_questions import pitprops
 from matplotlib.pyplot import plot,grid,xlabel,ylabel,legend,title,figure
+from static_questions import pitprops
+from scipy.linalg import cholesky
 
+from numpy import save as npsave
 #%%
 
-L = cholesky(pitprops)
-A = L
+k = 5
 
-m,n = shape(A)
-
-#%%
-
-s = 20
-
-omega = SPCA(A,s)
-
-#%%
-
-k = 4
-
+repeat = 1
 up_to = 12
 
-s_var = zeros([up_to-1,7])
-s_cpu = zeros([up_to-1,7])
-    
-for iteration in range(0,up_to-1):
-    gc.collect()
-    
-    sparsity = (iteration+2) * 1
-    omega.s = sparsity
-    omega.args["sparsity"] = sparsity
-    print("!!! Current Sparsity level",sparsity,"!!!")
-    omega.search_multiplier = min(200/sparsity,n/sparsity)
-    
-    t0 = time.process_time()
-    pattern1,eigens1,load1,component1,variance1 = omega.find_component("GD",k)
-    t1 = time.process_time()
-    print("gerschgorin done ")
-    
-    t2 = time.process_time()
-    pattern2,eigens2,load2,component2,variance2 = omega.find_component("CCW",k)
-    t3 = time.process_time()
-    print("CCW done ")
-    
-    t4 = time.process_time()
-    pattern3,eigens3,load3,component3,variance3 = omega.find_component("FCW",k)
-    t5 = time.process_time()
-    print("FCW done ")
-    
-    t6 = time.process_time()
-    pattern4,eigens4,load4,component4,variance4 = omega.find_component("EM",k)
-    t7 = time.process_time()
-    print("EM done ")
-    
-    t8 = time.process_time()
-    pattern5,eigens5,load5,component5,variance5 = omega.find_component("Path",k)
-    t9 = time.process_time()
-    print("Path/Chol done ")
-    
-    t10 = time.process_time()
-    pattern6,eigens6,load6,component6,variance6 = omega.find_component("GPower",k)
-    t11 = time.process_time()
-    print("Nesterov done ")
-    
-    t12 = time.process_time()
-    pattern7,eigens7,load7,component7,variance7 = omega.find_component("Greedy",k)
-    t13 = time.process_time()
-    print("PCW done ")
+s_var = zeros([repeat,up_to,9])
+s_cpu = zeros([repeat,up_to,9])
+s_wall = zeros([repeat,up_to,9])
 
-
-
+for rep in range(repeat):
+    L = cholesky(pitprops)
+    A = L
     
-    print("----------------------------")
-    print("gerschgorin  ",t1-t0)
-    print("correlation  ",t3-t2)
-    print("frobenius    ",t5-t4)
-    print("EM     ",t7-t6)
-    print("Path     ",t9-t8)
-    print("nesterov     ",t11-t10)
-    print("PCW          ",t13-t12)
-    print("----------------------------")
-    print("gerschgorin  ",sum(variance1))
-    print("correlation  ",sum(variance2))
-    print("frobenius    ",sum(variance3))
-    print("EM          ",sum(variance4))
-    print("Path     ",sum(variance5))
-    print("nesterov          ",sum(variance6))
-    print("PCW      ",sum(variance7))
+    m,n = shape(A)
     
-    s_cpu[iteration,0] = t1-t0
-    s_cpu[iteration,1] = t3-t2
-    s_cpu[iteration,2] = t5-t4
-    s_cpu[iteration,3] = t7-t6
-    s_cpu[iteration,4] = t9-t8
-    s_cpu[iteration,5] = t11-t10
-    s_cpu[iteration,6] = t13-t12
+    s = 10
     
-    s_var[iteration,0] = sum(variance1)
-    s_var[iteration,1] = sum(variance2)
-    s_var[iteration,2] = sum(variance3)
-    s_var[iteration,3] = sum(variance4)
-    s_var[iteration,4] = sum(variance5)
-    s_var[iteration,5] = sum(variance6)
-    s_var[iteration,6] = sum(variance7)
+    omega = SPCA(A,s)
+    lambda_max,lambda_v = omega.eigen_pair(list(range(n)))
+    for iteration in range(0,up_to - 1):
+        sparsity = (iteration+2) * 1
+        omega.set_sparsity(sparsity)
+        omega.args["numOfTrials"] = 100
+        print("!!! Current Sparsity level",sparsity,"!!!")
+        omega.search = min(200,n)
+        
+        w0 = time.time()
+        t0 = time.process_time()
+        pattern1,eigens1,load1,component1,variance1 = omega.find_component("GD",k)
+        t1 = time.process_time()
+        w1 = time.time()
+        print("gerschgorin done ")
+        
+        w2 = time.time()
+        t2 = time.process_time()
+        pattern2,eigens2,load2,component2,variance2 = omega.find_component("CCW",k)
+        t3 = time.process_time()
+        w3 = time.time()
+        print("CCW done ")
+        
+        w4 = time.time()
+        t4 = time.process_time()
+        pattern3,eigens3,load3,component3,variance3 = omega.find_component("FCW",k)
+        t5 = time.process_time()
+        w5 = time.time()
+        print("FCW done ")
+        
+        w6 = time.time()
+        t6 = time.process_time()
+        pattern4,eigens4,load4,component4,variance4 = omega.find_component("EM",k)
+        t7 = time.process_time()
+        w7 = time.time()
+        print("EM done ")
+        
+        w8 = time.time()
+        t8 = time.process_time()
+        pattern5,eigens5,load5,component5,variance5 = omega.find_component("Path",k)
+        t9 = time.process_time()
+        w9 = time.time()
+        print("Path/Chol done ")
+        
+        w10 = time.time()
+        t10 = time.process_time()
+        pattern6,eigens6,load6,component6,variance6 = omega.find_component("GPower",k)
+        t11 = time.process_time()
+        w11 = time.time()
+        print("GPower done ")
+        
+        w12 = time.time()
+        t12 = time.process_time()
+        pattern7,eigens7,load7,component7,variance7 = omega.find_component("PCW",k)
+        t13 = time.process_time()
+        w13 = time.time()
+        print("PCW done ")
+        
+        w14 = time.time()
+        t14 = time.process_time()
+        pattern8,eigens8,load8,component8,variance8 = omega.find_component("GCW",k)
+        t15 = time.process_time()
+        w15 = time.time()
+        print("GCW done ")
+        
+        w16 = time.time()
+        t16 = time.process_time()
+        pattern9,eigens9,load9,component9,variance9 = omega.find_component("gpbbls",k)
+        t17 = time.process_time()
+        w17 = time.time()
+        print("GPBB-ls done ")
+        
+        print("----------------------------")
+        print("gerschgorin  ",t1-t0)
+        print("correlation  ",t3-t2)
+        print("frobenius    ",t5-t4)
+        print("EM     ",t7-t6)
+        print("Path     ",t9-t8)
+        print("GPower     ",t11-t10)
+        print("PCW          ",t13-t12)
+        print("GCW     ",t15-t14)
+        print("GPBB-ls    ",t17-t16)
+        
+        print("----------------------------")
+        print("gerschgorin  ",sum(variance1))
+        print("correlation  ",sum(variance2))
+        print("frobenius    ",sum(variance3))
+        print("EM          ",sum(variance4))
+        print("Path     ",sum(variance5))
+        print("GPower    ",sum(variance6))
+        print("PCW      ",sum(variance7))
+        print("GCW     ",sum(variance8))
+        print("GPBB-ls    ",sum(variance9))
+        
+        s_cpu[rep,iteration,0] = t1-t0
+        s_cpu[rep,iteration,1] = t3-t2
+        s_cpu[rep,iteration,2] = t5-t4
+        s_cpu[rep,iteration,3] = t7-t6
+        s_cpu[rep,iteration,4] = t9-t8
+        s_cpu[rep,iteration,5] = t11-t10
+        s_cpu[rep,iteration,6] = t13-t12
+        s_cpu[rep,iteration,7] = t15-t14
+        s_cpu[rep,iteration,8] = t17-t16
+        
+        s_wall[rep,iteration,0] = w1-w0
+        s_wall[rep,iteration,1] = w3-w2
+        s_wall[rep,iteration,2] = w5-w4
+        s_wall[rep,iteration,3] = w7-w6
+        s_wall[rep,iteration,4] = w9-w8
+        s_wall[rep,iteration,5] = w11-w10
+        s_wall[rep,iteration,6] = w13-w12
+        s_wall[rep,iteration,7] = w15-w14
+        s_wall[rep,iteration,8] = w17-w16
+        
+        s_var[rep,iteration,0] = sum(variance1)/lambda_max
+        s_var[rep,iteration,1] = sum(variance2)/lambda_max
+        s_var[rep,iteration,2] = sum(variance3)/lambda_max
+        s_var[rep,iteration,3] = sum(variance4)/lambda_max
+        s_var[rep,iteration,4] = sum(variance5)/lambda_max
+        s_var[rep,iteration,5] = sum(variance6)/lambda_max
+        s_var[rep,iteration,6] = sum(variance7)/lambda_max
+        s_var[rep,iteration,7] = sum(variance8)/lambda_max
+        s_var[rep,iteration,8] = sum(variance9)/lambda_max
     
 
 #%%
 
-sparsity = arange(2,13)
+ss_var = s_var.mean(axis = 0)
+ss_cpu = s_cpu.mean(axis = 0)
+ss_wall = s_wall.mean(axis = 0)
+
+#%%
+sparsity = arange(5,5 * (up_to + 1),5)
 
 varf = figure()
 grid(True)
-plot(sparsity,s_var[:,0],color = "blue")
-plot(sparsity,s_var[:,1],color = "red")
-plot(sparsity,s_var[:,2],color = "green")
-plot(sparsity,s_var[:,3],color = "olive")
-plot(sparsity,s_var[:,4],color = "orange")
-plot(sparsity,s_var[:,5],color = "purple")
-plot(sparsity,s_var[:,6],color = "yellow")
-legend(["GD","CCW","FCW","EM","Path","GPower","Greedy"])
+plot(sparsity,ss_var[:,0],color = "lightcoral")
+plot(sparsity,ss_var[:,1],color = "red")
+plot(sparsity,ss_var[:,2],color = "firebrick")
+plot(sparsity,ss_var[:,3],color = "wheat")
+plot(sparsity,ss_var[:,4],color = "blue")
+plot(sparsity,ss_var[:,5],color = "orange")
+plot(sparsity,ss_var[:,6],color = "purple")
+plot(sparsity,ss_var[:,7],color = "magenta")
+plot(sparsity,ss_var[:,8],color = "yellow")
+legend(["GD","CCW","FCW","EM","Path","GPower","PCW","GCW","GPBB-ls"])
 xlabel("Sparsity")
 ylabel("Variance")
-title("Variance Against Sparsity Level Pattern Generation")
+title("Percentage of Variance Explained Against Sparsity Level")
+# title("Percentage of Total Variance Against Sparsity Level")
 
 cpuf = figure()
 grid(True)
-plot(sparsity,s_cpu[:,0],color = "blue")
-plot(sparsity,s_cpu[:,1],color = "red")
-plot(sparsity,s_cpu[:,2],color = "green")
-plot(sparsity,s_cpu[:,3],color = "olive")
-plot(sparsity,s_cpu[:,4],color = "orange")
-plot(sparsity,s_cpu[:,5],color = "purple")
-plot(sparsity,s_cpu[:,6],color = "yellow")
-legend(["GD","CCW","FCW","EM","Path","GPower","Greedy"])
+plot(sparsity,ss_cpu[:,0],color = "lightcoral")
+plot(sparsity,ss_cpu[:,1],color = "red")
+plot(sparsity,ss_cpu[:,2],color = "firebrick")
+plot(sparsity,ss_cpu[:,3],color = "wheat")
+plot(sparsity,ss_cpu[:,4],color = "blue")
+plot(sparsity,ss_cpu[:,5],color = "orange")
+plot(sparsity,ss_cpu[:,6],color = "purple")
+plot(sparsity,ss_cpu[:,7],color = "magenta")
+plot(sparsity,ss_cpu[:,8],color = "yellow")
+legend(["GD","CCW","FCW","EM","Path","GPower","PCW","GCW","GPBB-ls"])
 xlabel("Sparsity")
-ylabel("CPU time (s)")
-title("CPU time Against Sparsity Level Pattern Generation")
+ylabel("CPU Time (s)")
+title("CPU Time Against Sparsity Level")
+
+wallf = figure()
+grid(True)
+plot(sparsity,ss_wall[:,0],color = "lightcoral")
+plot(sparsity,ss_wall[:,1],color = "red")
+plot(sparsity,ss_wall[:,2],color = "firebrick")
+plot(sparsity,ss_wall[:,3],color = "wheat")
+plot(sparsity,ss_wall[:,4],color = "blue")
+plot(sparsity,ss_wall[:,5],color = "orange")
+plot(sparsity,ss_wall[:,6],color = "purple")
+plot(sparsity,ss_wall[:,7],color = "magenta")
+plot(sparsity,ss_wall[:,8],color = "yellow")
+legend(["GD","CCW","FCW","EM","Path","GPower","PCW","GCW","GPBB-ls"])
+xlabel("Sparsity")
+ylabel("Wall Time (s)")
+title("Wall Time Against Sparsity Level")
 
 varf.savefig("pitprops_comparison_multiple_variance.eps",format = "eps")
 cpuf.savefig("pitprops_comparison_multiple_cpu.eps",format = "eps")
+wallf.savefig("pitprops_comparison_multiple_wall.eps",format = "eps")
 
+varf.savefig("pitprops_comparison_multiple_variance_png.png",format = "png")
+cpuf.savefig("pitprops_comparison_multiple_cpu_png.png",format = "png")
+wallf.savefig("pitprops_comparison_multiple_wall_png.png",format = "png")
+
+npsave("pitprops_comparison_multiple_variance.npy",s_var)
+npsave("pitprops_comparison_multiple_cpu.npy",s_cpu)
+npsave("pitprops_comparison_multiple_wall.npy",s_wall)

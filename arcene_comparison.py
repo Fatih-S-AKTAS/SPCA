@@ -1,16 +1,15 @@
 from PCA_SPAR import SPCA
-from numpy import reshape,mean,ones,arange,shape,std,zeros,load,random
+from numpy import reshape,mean,ones,arange,shape,std,zeros,load,random,where
 import time
 from matplotlib.pyplot import plot,grid,xlabel,ylabel,legend,title,figure
-from scipy.sparse.linalg import eigsh
 
 from numpy import save as npsave
 from scipy.io import savemat
 #%%
 
-k = 5
+k = 1
 
-repeat = 30
+repeat = 1
 up_to = 50
 
 s_var = zeros([repeat,up_to,9])
@@ -18,29 +17,28 @@ s_cpu = zeros([repeat,up_to,9])
 s_wall = zeros([repeat,up_to,9])
 
 for rep in range(repeat):
-    A = random.normal(4,10,[100,2000])
-    
-    m,n = shape(A)
+    A = load("arcene_data.npy")
     
     A = A - A.mean(axis = 0)
     
     sA = std(A,axis = 0)
     
-    A = A/sA
+    nonzero_variance, = where(sA != 0)
+    A = A[:,nonzero_variance]/sA[nonzero_variance]
+
+    m,n = shape(A)
     
     s = 20
     
     mdic = {"data": A, "label": "experiment"}
     savemat("data_matrix.mat",mdic)
-
+    
     omega = SPCA(A,s)
-    lambda_max,lambda_v = eigsh(omega.A2,k = k)
-    lambda_max = lambda_max.sum()
+    lambda_max,lambda_v = omega.eigen_pair(list(range(n)))
     for iteration in range(0,up_to):
         sparsity = (iteration+1) * 5
         omega.set_sparsity(sparsity)
         omega.args["numOfTrials"] = 100
-        print("!!! Current Repeat",rep,"!!!")
         print("!!! Current Sparsity level",sparsity,"!!!")
         omega.search = min(200,n)
         
@@ -218,14 +216,14 @@ xlabel("Sparsity")
 ylabel("Wall Time (s)")
 title("Wall Time Against Sparsity Level")
 
-varf.savefig("CW_comparison_multiple_variance.eps",format = "eps")
-cpuf.savefig("CW_comparison_multiple_cpu.eps",format = "eps")
-wallf.savefig("CW_comparison_multiple_wall.eps",format = "eps")
+varf.savefig("arcene_comparison_variance.eps",format = "eps")
+cpuf.savefig("arcene_comparison_cpu.eps",format = "eps")
+wallf.savefig("arcene_comparison_wall.eps",format = "eps")
 
-varf.savefig("CW_comparison_multiple_variance_png.png",format = "png")
-cpuf.savefig("CW_comparison_multiple_cpu_png.png",format = "png")
-wallf.savefig("CW_comparison_multiple_wall_png.png",format = "png")
+varf.savefig("arcene_comparison_variance_png.png",format = "png")
+cpuf.savefig("arcene_comparison_cpu_png.png",format = "png")
+wallf.savefig("arcene_comparison_wall_png.png",format = "png")
 
-npsave("CW_comparison_multiple_variance.npy",s_var)
-npsave("CW_comparison_multiple_cpu.npy",s_cpu)
-npsave("CW_comparison_multiple_wall.npy",s_wall)
+npsave("arcene_comparison_variance.npy",s_var)
+npsave("arcene_comparison_cpu.npy",s_cpu)
+npsave("arcene_comparison_wall.npy",s_wall)
